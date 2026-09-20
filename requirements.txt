@@ -1,0 +1,12 @@
+# Python 3.10+
+
+# Video/audio processing. A system FFmpeg installation is used first;
+# imageio-ffmpeg supplies a fallback executable.
+imageio-ffmpeg>=0.6.0,<0.7
+mutagen>=1.47,<2
+
+# Transcription and subtitle translation APIs.
+openai>=2,<4
+
+# Desktop text viewer in qtTest/app.py.
+PyQt6>=6.7,<7
