@@ -11,14 +11,16 @@ from media_file import MediaFile
 def main() -> int:
     project_dir = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description="MP3 추출, 한국어 전사, 영어 자막 번역을 수행합니다.")
-    parser.add_argument("filepath", type=Path, help="비디오/오디오 또는 한국어 자막 TXT 경로")
+    parser.add_argument("filepath", type=Path, nargs="?", help="비디오/오디오 또는 한국어 자막 TXT 경로")
     action = parser.add_mutually_exclusive_group()
     action.add_argument("--pipeline", action="store_true", help="전체 파이프라인 실행 (기본, 유료 API 호출)")
     action.add_argument("--extract", action="store_true", help="오디오 추출만 수행 (로컬 작업)")
-    action.add_argument("--transcribe", action="store_true", help="Whisper API로 한국어 구간 전사 (유료 API 호출)")
+    action.add_argument("--transcribe", action="store_true", help="GPT API로 무음 경계별 한국어 전사 (유료 API 호출)")
     action.add_argument("--translate", action="store_true", help="한국어 TXT를 영어 자막으로 번역 (유료 API 호출)")
     action.add_argument("--make-srt", action="store_true", help="자막 TXT를 SRT로 변환 (로컬 작업)")
     action.add_argument("--render", action="store_true", help="원본 영상에 영어 자막을 합성한 MP4 생성 (로컬 작업)")
+    action.add_argument("--list-courses", action="store_true", help="텍스트북 과목 목록 출력 (API 호출 없음)")
+    parser.add_argument("--course", help="과목 번호 또는 유일하게 일치하는 과목명 (예: 3, AI/ML)")
     parser.add_argument("--pipeline-output-dir", type=Path, default=project_dir / "output_runs",
                         help="전체 실행 결과 폴더의 상위 경로 (실행마다 새 하위 폴더 생성)")
     parser.add_argument("--subtitle-file", type=Path,
@@ -37,8 +39,22 @@ def main() -> int:
     parser.add_argument("--transcript-output-dir", type=Path,
                         default=project_dir / "output_txts",
                         help="TXT와 JSON 저장 폴더 (재전사 시 다른 폴더 지정 가능)")
+    parser.add_argument("--transcription-response", type=Path,
+                        help="--transcribe에서 기존 원본 JSON을 읽고 의심 구간만 재전사 (입력은 동일 MP3)")
     args = parser.parse_args()
+    if not args.list_courses and args.filepath is None:
+        parser.error("입력 파일 경로가 필요합니다.")
+    if args.transcription_response and (not args.transcribe or args.filepath is None or args.filepath.suffix.lower() != ".mp3"):
+        parser.error("--transcription-response는 동일 MP3 입력의 --transcribe와 함께 사용하세요.")
     try:
+        from textbook import Textbook
+        if args.list_courses:
+            for i, course in enumerate(Textbook.load(args.textbook_file).courses, 1):
+                print(f"{i}. {course.name} ({len(course.terminology)}개 용어)")
+            return 0
+        if not any((args.extract, args.make_srt, args.render)):
+            selected = Textbook.load(args.textbook_file).select_course(args.course)
+            args.course = selected.course
         if args.pipeline or not any((args.extract, args.transcribe, args.translate, args.make_srt, args.render)):
             if any((args.srt_output, args.video_output, args.translation_output)):
                 raise ValueError("전체 실행의 저장 위치는 --pipeline-output-dir로 지정하세요.")
@@ -46,7 +62,8 @@ def main() -> int:
                 from pipeline import run_pipeline
             except ImportError:
                 raise ValueError("python -m pip install -r requirements.txt 를 실행하세요.") from None
-            result = run_pipeline(args.filepath, args.pipeline_output_dir, args.api_key_file, args.textbook_file)
+            result = run_pipeline(args.filepath, args.pipeline_output_dir, args.api_key_file, args.textbook_file,
+                                  course=args.course)
             print(f"전체 파이프라인 완료: {result}", flush=True)
             return 0
         if args.make_srt or args.render:
@@ -71,7 +88,7 @@ def main() -> int:
             except ImportError:
                 raise ValueError("python -m pip install -r requirements.txt 를 실행하세요.") from None
             try:
-                output = SubtitleTranslator(args.api_key_file, args.textbook_file).translate(
+                output = SubtitleTranslator(args.api_key_file, args.textbook_file, course=args.course).translate(
                     args.filepath, args.translation_output,
                 )
             except SubtitleTranslationError as exc:
@@ -88,11 +105,13 @@ def main() -> int:
             audio = MediaFile(args.filepath)
             if args.filepath.suffix.lower() != ".mp3":
                 audio = AudioExtractor(project_dir / "output_audios").extract(audio)
-            print("한국어 전사 요청 중: whisper-1 / segment", flush=True)
+            mode = "기존 원본 응답 복구" if args.transcription_response else f"{AudioTranscriber.MODEL} / 무음 경계"
+            print(f"한국어 전사 요청 중: {mode}", flush=True)
             try:
                 transcript = AudioTranscriber(
                     args.api_key_file, args.transcript_output_dir, args.textbook_file,
-                ).transcribe(audio)
+                    course=args.course,
+                ).transcribe(audio, response_file=args.transcription_response)
             except AudioTranscriptionError as exc:
                 print(f"전사 실패: {exc}", file=sys.stderr)
                 return 1

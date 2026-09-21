@@ -4,11 +4,12 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QMainWindow, QMessageBox
+from PyQt6.QtWidgets import QMainWindow, QMessageBox, QSplitter
 
 from qtTest.FileDialog import FileDialog
 from qtTest.videoPlayer import QVideoPlayer
 from qtTest.textbook_editor.editor import TextbookEditorWindow
+from qtTest.pipeline_panel import PipelinePanel
 
 
 class MyApp(QMainWindow):
@@ -23,11 +24,18 @@ class MyApp(QMainWindow):
     def _init_ui(self) -> None:
         self.video_player = QVideoPlayer(self)
         self.video_player.error_occurred.connect(self._show_video_error)
-        self.setCentralWidget(self.video_player)
+        self.pipeline_panel = PipelinePanel(self)
+        self.pipeline_panel.video_requested.connect(self.open_file)
+        splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.addWidget(self.video_player)
+        splitter.addWidget(self.pipeline_panel)
+        splitter.setSizes([450, 400])
+        self.setCentralWidget(splitter)
 
         open_file_action = QAction("Open Video", self)
         open_file_action.setShortcut("Ctrl+O")
         open_file_action.triggered.connect(self.open_file)
+        self.pipeline_panel.busy_changed.connect(lambda busy: open_file_action.setEnabled(not busy))
 
         menu_bar = self.menuBar()
         menu_bar.setNativeMenuBar(False)
@@ -42,7 +50,7 @@ class MyApp(QMainWindow):
 
         self.statusBar().showMessage("Ready")
         self.setWindowTitle("Video Player")
-        self.resize(960, 600)
+        self.resize(1100, 900)
 
     def _apply_stylesheet(self) -> None:
         try:
@@ -55,6 +63,8 @@ class MyApp(QMainWindow):
         self.setStyleSheet(stylesheet)
 
     def open_file(self) -> None:
+        if self.pipeline_panel.busy:
+            return
         path = FileDialog.select_video_file(self)
         if path is None:
             return
@@ -66,6 +76,7 @@ class MyApp(QMainWindow):
             return
 
         self.setWindowTitle(f"Video Player — {path.name}")
+        self.pipeline_panel.set_video(path)
         self.statusBar().showMessage(str(path))
 
     def _show_video_error(self, message: str) -> None:
@@ -85,6 +96,10 @@ class MyApp(QMainWindow):
         self.textbook_window = None
 
     def closeEvent(self, event):
+        if self.pipeline_panel.busy:
+            self.statusBar().showMessage("파이프라인 실행 중입니다. 작업이 끝난 뒤 창을 닫아주세요.")
+            event.ignore()
+            return
         if self.textbook_window is not None and not self.textbook_window.close():
             event.ignore()
             return

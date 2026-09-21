@@ -75,6 +75,13 @@ class MainEditorTests(unittest.TestCase):
             self.assertTrue(self.window.close())
         self.assertFalse(self.window.isVisible())
 
+    def test_main_stays_open_while_pipeline_is_running(self):
+        self.window.pipeline_panel._set_busy(True)
+        self.assertFalse(self.window.close())
+        self.assertTrue(self.window.isVisible())
+        self.window.pipeline_panel._set_busy(False)
+        self.assertTrue(self.window.close())
+
 
 if __name__ == "__main__":
     unittest.main()

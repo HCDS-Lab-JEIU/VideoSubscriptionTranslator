@@ -36,6 +36,7 @@ class PipelineTests(unittest.TestCase):
             return MediaFile(path)
 
         def transcribe(transcriber, audio):
+            self.assertEqual(transcriber.course, "회로")
             self.assertEqual(audio.file_path.read_bytes(), b"audio")
             path = transcriber.output_dir / f"{audio.file_path.stem}.txt"
             path.parent.mkdir(parents=True)
@@ -43,6 +44,7 @@ class PipelineTests(unittest.TestCase):
             return MediaFile(path)
 
         def translate(translator, source):
+            self.assertEqual(translator.course, "회로")
             self.assertIn("전압", source.read_text(encoding="utf-8"))
             path = translator._output_path(source)
             path.write_text("[00:00:00.000, 00:00:01.000] Voltage\n", encoding="utf-8")
@@ -77,6 +79,17 @@ class PipelineTests(unittest.TestCase):
             translate.assert_not_called()
             render.assert_not_called()
 
+    def test_empty_transcription_skips_translation_and_render(self):
+        empty = self.root / "empty.txt"
+        empty.write_text("", encoding="utf-8")
+        with patch("pipeline.AudioExtractor.extract", return_value=MediaFile(self.video)), \
+             patch("pipeline.AudioTranscriber.transcribe", return_value=MediaFile(empty)), \
+             patch("pipeline.SubtitleTranslator.translate") as translate, \
+             patch("pipeline.VideoSubtitler.render") as render:
+            self.assertEqual(self.run_pipeline(), self.video)
+        translate.assert_not_called()
+        render.assert_not_called()
+
     def test_missing_input_or_config_stops_before_extraction(self):
         with patch("pipeline.AudioExtractor.extract") as extract:
             self.key.unlink()
@@ -92,15 +105,34 @@ class PipelineTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("video_cli", Path(__file__).resolve().parents[1] / "__main__.py")
         cli = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cli)
-        with patch("sys.argv", ["__main__.py", str(self.video)]), \
+        with patch("sys.argv", ["__main__.py", str(self.video), "--textbook-file", str(self.book)]), \
              patch("pipeline.run_pipeline", return_value=self.root / "final.mp4") as run:
             self.assertEqual(cli.main(), 0)
             self.assertEqual(run.call_args.args[0], self.video)
-        with patch("sys.argv", ["__main__.py", str(self.video), "--pipeline"]), \
+        with patch("sys.argv", ["__main__.py", str(self.video), "--pipeline", "--textbook-file", str(self.book)]), \
              patch("pipeline.run_pipeline", side_effect=RuntimeError("번역 실패")), \
              contextlib.redirect_stderr(io.StringIO()) as error:
             self.assertEqual(cli.main(), 1)
         self.assertIn("번역 실패", error.getvalue())
+
+    def test_multicourse_requires_selection_before_extraction(self):
+        with self.book.open("a", encoding="utf-8") as output:
+            output.write("[Course]\nAI/ML\n[Terminology]\n텐서 = tensor\n")
+        with patch("pipeline.AudioExtractor.extract") as extract:
+            with self.assertRaisesRegex(ValueError, "--course"):
+                self.run_pipeline()
+            extract.assert_not_called()
+        self.assertFalse((self.root / "runs").exists())
+
+    def test_cli_lists_courses_without_input_or_api_key(self):
+        spec = importlib.util.spec_from_file_location("video_cli", Path(__file__).resolve().parents[1] / "__main__.py")
+        cli = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli)
+        with patch("sys.argv", ["__main__.py", "--list-courses", "--textbook-file", str(self.book),
+                                "--api-key-file", str(self.root / "missing-key")]), \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(cli.main(), 0)
+        self.assertIn("1. 회로", output.getvalue())
 
 
 if __name__ == "__main__":

@@ -28,7 +28,7 @@ flowchart TD
 | 순서 | 쉬운 설명 | 실제 함수 | 실행 장소 |
 | --- | --- | --- | --- |
 | 1 | 영상에서 소리만 꺼낸다 | `AudioExtractor.extract()` | 내 컴퓨터의 FFmpeg |
-| 2 | 한국어를 듣고 시간과 함께 적는다 | `AudioTranscriber.transcribe()` | OpenAI API, 코드상 모델 `whisper-1` |
+| 2 | 무음 경계별로 한국어를 듣고 구간 시간을 붙인다 | `AudioTranscriber.transcribe()` | OpenAI API, `gpt-transcribe` |
 | 3 | 시간표는 두고 문장만 영어로 옮긴다 | `SubtitleTranslator.translate()` | OpenAI API, 코드상 모델 `gpt-4.1` |
 | 4 | 글을 자막 규격에 맞춰 정리한다 | `SrtWriter.write()` | 내 컴퓨터 |
 | 5 | 원본 영상에 자막을 붙인다 | `VideoSubtitler.render()` | 내 컴퓨터의 FFmpeg |
@@ -61,6 +61,16 @@ Set-Location 'D:\VideoSubsribProject'
 FFmpeg는 영상·소리를 변환하는 별도 프로그램입니다. `ffmpeg_tools.py`는 PATH의 `ffmpeg`를 먼저 찾고, 없으면 `imageio-ffmpeg`의 실행 파일을 사용합니다. 자막 합성에는 `subtitles` 필터(libass 지원)가 필요합니다.
 
 ### API 키와 텍스트북 준비
+
+메인 앱에서 실행하려면 다음 명령을 사용합니다.
+
+```powershell
+& 'D:\Miniconda3\envs\translator\python.exe' qtTest/app.py
+```
+
+영상 아래 실행 패널에서 **영상 선택 → 텍스트북 불러오기 → 과목 선택 → 파이프라인 실행** 순서로 진행합니다. 기본 텍스트북이 있으면 시작할 때 불러오며, 과목이 하나면 자동 선택하고 여러 개면 선택 목록에서 직접 고릅니다. API 키 파일과 결과 저장 위치도 패널에서 변경할 수 있습니다. 편집기에서 수정한 텍스트북은 저장한 뒤 다시 불러오세요.
+
+파이프라인은 메인 앱과 동일한 Python 환경의 별도 프로세스에서 실행합니다. 진행 단계·한글 로그·실패 이유를 화면에 표시하며 **결과 폴더 열기**로 중간 결과와 완성 영상을 확인할 수 있습니다. 실행 중에는 중복 실행과 입력 변경을 막고, 창 닫기를 보류하여 작업이 끊기지 않게 합니다. 실행 시작 시 텍스트북 사본을 만들어 작업 도중 원본을 편집해도 해당 실행에 적용되는 규칙은 유지합니다. 실행 버튼을 누르면 유료 전사·번역이 시작되며, 완료 후 다시 실행하면 새 실행 폴더에서 처음부터 처리합니다.
 
 프로젝트 안에 다음 두 UTF-8 파일을 만듭니다.
 
@@ -97,7 +107,7 @@ Do not summarize or omit technical meaning.
 ### 영상 하나로 전체 실행
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4'
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --course '회로'
 ```
 
 **작업 옵션을 생략하면 전체 5단계가 실행됩니다.** `--pipeline`을 붙여도 같습니다. 콘솔에 현재 단계와 결과 경로가 표시됩니다.
@@ -109,7 +119,7 @@ output_runs/
     │   └── lecture_kr.mp3
     ├── transcripts/
     │   ├── lecture_kr.txt              # 한국어 받아쓰기
-    │   ├── lecture_kr.json             # 전사 API 원본 응답
+    │   ├── lecture_kr.json             # 구간별 전사 병합본과 진행 상태
     │   ├── lecture_en.txt              # 영어 번역
     │   └── lecture_en.translation.json # 번역 진행 기록
     ├── lecture_en.srt                  # 자막 파일
@@ -151,7 +161,9 @@ result = subtitler.render(video.file_path, srt, output_path)
 
 `AudioTranscriber.transcribe()`는 MP3와 텍스트북 힌트를 API에 보냅니다. 코드에서는 한국어(`ko`), `verbose_json`, 구간 단위 타임스탬프(`segment`)를 요청합니다.
 
-응답의 각 구간은 “언제 시작했는지, 언제 끝났는지, 무슨 말을 했는지”를 갖습니다. API 원본 응답을 JSON으로 먼저 보관하고, `TranscriptWriter`가 읽기 쉬운 TXT를 만듭니다.
+음성을 로컬에서 무음 경계별로 나누고 `gpt-transcribe`로 한국어 전사합니다. 0.6초 이상의 쉼을 경계 후보로 사용하고, 짧은 머뭇거림은 같은 구간에 둡니다. 쉼이 없는 긴 발화는 최대 20초로 나눕니다. 모델은 텍스트만 반환하며, 실제 추출 구간의 시작·종료 시간을 자막 시간으로 사용합니다. 문장 끝이나 단어별 정렬을 보장하는 방식은 아닙니다. 각 요청의 원본 응답은 `*_recovery/`에, 시간과 텍스트를 결합한 병합본은 `*.json`에 구간 처리마다 저장합니다. 마지막에 `TranscriptWriter`가 TXT를 만듭니다. 앞 구간이 실패해도 뒤 구간의 첫 전사는 계속합니다.
+
+영어 번역은 별도 `gpt-4.1` 모델이 한국어 자막과 앞뒤 문맥을 받아 수행하며, 구간 수와 시간을 보존합니다. 전사·번역 프롬프트는 문장부호와 표현을 자연스럽게 정리하되, 들리지 않은 단어·수치·문장 끝을 추측해 보충하지 않도록 지시합니다. 전사 모델과 언어 힌트의 API 형식은 [공식 OpenAI 전사 문서](https://developers.openai.com/api/docs/guides/speech-to-text)를 따릅니다.
 
 ```text
 [00:00:01.200, 00:00:04.560] 전압을 측정합니다.
@@ -210,7 +222,7 @@ Measure the voltage.
 
 코드의 `SubscriptFile`, `SubscriptLine`은 자막 관련 이름입니다. 검색하거나 수정할 때는 이 실제 철자를 사용하면 됩니다.
 
-전사 단계는 API가 준 초 값을 `TimeStamp`로 바꿉니다. 번역 단계는 이미 만들어진 시간을 보존해야 하므로 시간 문자열을 담는 `SubtitleTextLine`을 사용합니다.
+전사 단계는 로컬 음성 분할 경계의 초 값을 `TimeStamp`로 바꿉니다. 번역 단계는 이미 만들어진 시간을 보존해야 하므로 시간 문자열을 담는 `SubtitleTextLine`을 사용합니다.
 
 ## 5. 텍스트북은 AI에게 건네는 강의 메모
 
@@ -219,16 +231,26 @@ Measure the voltage.
 | 섹션 | 쉬운 설명 | 사용 단계 |
 | --- | --- | --- |
 | `[Common Rules]` | 모두에게 주는 공통 메모 | 전사·번역 |
-| `[Whisper Rules]` | 받아쓸 때 참고할 말 | 전사 |
+| `[Whisper Rules]` | 받아쓸 때 참고할 말 (기존 항목명 유지, GPT 전사에도 적용) | 전사 |
 | `[Translation Rules]` | 영어로 옮기는 방법 | 번역, 번역 실행 시 필수 |
 | `[Course]` | 강의 이름 | 전사·번역 |
-| `[Terminology]` | `한국어 = English` 용어표 | 전사는 한국어 용어, 번역은 한영 대응표 |
+| `[Terminology]` | `한국어 = English` 용어표 | GPT 전사와 번역 모두 한영 표기 참고 |
 
 여러 과목이 있으면 `[Course]`와 `[Terminology]` 묶음을 반복합니다. 각 과목에는 이름과 한 개 이상의 용어가 필요합니다. 같은 과목 안의 중복 한국어 용어는 오류이고, 서로 다른 과목에는 같은 용어를 다른 뜻으로 등록할 수 있습니다.
 
 규칙 섹션은 종류별로 한 번씩 작성합니다. 섹션 이름은 대소문자를 구분하지 않으며 빈 줄과 `#`으로 시작하는 줄은 무시합니다. 기존 `[Translation instructions]` 이름도 지원합니다.
 
-현재는 파일 안의 **모든 과목**이 prompt에 들어갑니다. 필요한 과목만 넣거나 `--textbook-file 'secrets\circuits.txt'`로 강의별 파일을 지정하세요. 코드는 prompt의 토큰 수를 계산하거나 자동으로 줄이지 않습니다.
+**선택한 한 과목의 이름·용어만** 전사·복구 재전사·번역 prompt에 들어갑니다. 공통 규칙과 해당 단계의 규칙은 함께 전달됩니다. 여러 과목이 있으면 `--course`가 필수이고, 한 과목만 있는 파일은 자동 선택합니다. 번호(파일 순서), 전체 이름 또는 유일하게 일치하는 이름 일부를 사용할 수 있습니다. 잘못되거나 모호한 선택은 오디오 추출·API 호출 전에 오류로 표시합니다.
+
+```powershell
+# 목록 확인만 수행: 입력 영상과 API 키 불필요
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py --list-courses
+
+# 기본 텍스트북의 AI/ML 과목만 사용
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --course 'AI/ML'
+```
+
+`--textbook-file`로 다른 파일을 선택할 수도 있습니다. 목록 번호는 파일을 재정렬하면 바뀌므로 반복 실행에는 과목명을 권장합니다. 공통·단계별 규칙에 직접 적힌 다른 과목 내용은 자동으로 제거하지 않습니다. 토큰 수 자동 계산·축약은 지원하지 않습니다. 무음 검사와 복구 요청 상한은 아래 전사 자동 복구 절을 참고하세요.
 
 ## 6. 한 단계씩 실행하고 결과 확인하기
 
@@ -239,10 +261,10 @@ Measure the voltage.
 & 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --extract
 
 # 2. MP3 → 한국어 TXT + JSON (유료 API)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_audios\lecture_kr.mp3' --transcribe
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_audios\lecture_kr.mp3' --transcribe --course '회로'
 
 # 3. 한국어 TXT → 영어 TXT (유료 API)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_txts\lecture_kr.txt' --translate
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_txts\lecture_kr.txt' --translate --course '회로'
 
 # 4. 영어 TXT → SRT (로컬)
 & 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_txts\lecture_en.txt' --make-srt
@@ -282,7 +304,7 @@ Measure the voltage.
 예를 들어 번역 중 멈췄다면 콘솔에 출력된 실제 실행 폴더를 사용합니다. 아래의 `실제실행폴더`를 해당 폴더명으로 바꾸세요.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_runs\실제실행폴더\transcripts\lecture_kr.txt' --translate
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_runs\실제실행폴더\transcripts\lecture_kr.txt' --translate --course '회로'
 ```
 
 이 명령은 같은 영어 출력 경로의 진행 JSON을 읽습니다. 완료된 영어 TXT가 이미 있으면 번역 대신 `--render`로 진행하면 됩니다. 자막 TXT의 시간 기준은 원본 영상과 같아야 합니다.
@@ -294,10 +316,47 @@ Measure the voltage.
 | 전사 JSON만 남음 | API 응답은 보관되어 있습니다. TXT 재생성에는 별도 재가공 코드가 필요하며 전용 CLI 옵션은 없습니다. |
 | 번역 원문·규칙·모델이 바뀜 | 기존 진행 기록과 맞지 않으면 중단합니다. `--translation-output`으로 새 경로를 지정하세요. |
 | 번역 일부가 계속 비어 있음 | 구간 번호·시간·원문을 확인합니다. 정상 번역은 진행 JSON에 보관됩니다. |
-| API 연결 또는 인증 실패 | 연결·키 파일·API 사용 한도를 확인합니다. SDK의 자동 재시도는 꺼져 있습니다. |
+| API 연결 또는 인증 실패 | 전사 요청은 90초 timeout, SDK 자동 재시도 없이 실행합니다. 구간의 연결·일시적 서버 실패는 제한된 추가 복구 대상으로 넘깁니다. 이후 구간의 첫 전사는 계속합니다. 인증·권한·사용 한도 오류는 실행 전체를 중단합니다. 번역의 SDK 자동 재시도도 꺼져 있습니다. |
+| 전사에서 긴 문장이 연속 반복됨 | 해당 구간을 `gpt-transcribe`로 힌트 없이 최대 1회 재전사합니다. 끝내 실패한 부분은 검토 기록에 남기고 자막만 생략하며 다음 구간을 처리합니다. |
 | 자막 합성 실패 | FFmpeg 오류 메시지와 `subtitles` 필터 지원 여부를 확인합니다. |
 
 전사·번역의 API 대기 중에는 5초마다 상태 메시지가 나오고, 영상 합성 중에는 FFmpeg의 처리 위치가 표시됩니다. 인식 문장, 전문용어, 자막 시간은 결과 파일과 실제 영상을 대조해 검수하세요.
+
+### 전사 자동 복구와 Iris 강의 용어
+
+Windows에서 복구 기록 JSON 교체가 `WinError 5` 등 접근 거부로 실패하면 최대 3회 짧게 재시도합니다. 계속 실패하면 기존 기록을 유지하고 `*.recovery.snapshot-*.json`에 최신 기록을 보존한 뒤 전사를 계속합니다. 콘솔의 `최신 복구 기록` 경로를 확인하세요. 이 대체 저장은 추가 API 요청을 만들지 않습니다. 새 파일 쓰기 자체가 불가능하거나 디스크가 부족한 경우에는 오류를 숨기지 않고 중단합니다.
+
+전사 전에 FFmpeg로 전체 MP3를 로컬 검사합니다. `-60 dB` 이하가 0.3초 이상 이어지면 제외 가능한 무음으로 기록합니다. 별도로 `-40 dB` 이하의 쉼을 찾아 0.6초 이상이면 분할 경계 후보로만 사용합니다. 더 높은 임계값으로 감지한 작은 음성은 버리지 않고, 쉼의 중심에서 양쪽 구간에 나누어 포함합니다. MP3 패딩을 제외한 실제 디코딩 길이를 사용합니다. 전체 무음이면 API 요청 없이 빈 TXT와 검토 기록을 저장합니다. 파이프라인은 빈 전사에서 번역·영상 합성을 생략하고 원본 영상 경로를 반환합니다. 자막 앞뒤의 확인된 무음은 잘라냅니다. 이 검사는 배경 소음과 사람의 발화를 구분하는 VAD가 아니므로, 소음 위의 환각을 모두 막지는 못하며 매우 작은 실제 음성도 무음으로 판단될 수 있습니다.
+
+공백·문장부호를 제외한 12자 이상 문장이 1초 이내 간격으로 5회 이상, 총 15초 이상 반복되거나, 응답의 압축 비율이 4 이상이면 자동 재전사합니다. 한 구간 안에 6자 이상 문자열이 3회 이상 반복되는 경우도 감지합니다. 구간 정보 누락·잘못된 타임스탬프도 복구 대상으로 처리합니다. **앞뒤 빈 시간만으로 재시도하지 않습니다.** 지시문과 일치하는 문장이나 긴 단어장 복사는 의심 응답으로 분류해 힌트 없이 재전사합니다. 실제 용어 나열도 감지될 수 있으며, 이를 완벽한 정확성 검사로 간주하면 안 됩니다.
+
+복구는 **해당 원음의 추가 유료 API 전사**입니다. 무음 조각은 요청을 생략합니다. 무음 경계별 구간의 **첫 전사**와 실행 전체의 **추가 복구 예산 12회**를 분리했습니다. 구간당 추가 재시도는 최대 1회이며, 복구 예산이 소진돼도 뒤쪽 정상 구간의 첫 전사를 수행합니다. 최초 전사까지 실패한 구간만 재시도 없이 검토 대상으로 남깁니다. 최대 전사 요청 수는 무음이 아닌 구간 수 + 12회이며, 번역 요청은 별도입니다. 콘솔에 예정 구간 수, 첫 전사 음성 합계, 추가 복구 상한을 표시하고 실제 재시도에는 `추가 복구`를 표시합니다. 처음부터 전체 음성을 한 번 더 보내는 요청은 없습니다.
+
+2026-09-22 확인한 [공식 요금](https://developers.openai.com/api/docs/models/gpt-transcribe)은 `gpt-transcribe` 음성 분당 $0.0045입니다. 요청 건수나 프롬프트 토큰별 요금으로 계산하지 않습니다. 총 50분을 중복 없이 전송하면 기본 전사는 약 $0.225이며, 추가 재전사·영어 번역 비용은 별도입니다. 잘게 나누면 요청 대기 시간은 늘지만, 요청 횟수 자체가 비용에 비례하지는 않습니다. 비용을 줄이려면 무음 전송과 같은 음성의 재전사를 줄이는 것이 우선입니다. 요금은 변경될 수 있습니다.
+
+첫 요청에는 선택 과목의 한영 용어 표기와 전사 규칙을 사용하고, 추가 재시도에서는 힌트를 비웁니다. GPT 전사는 이웃 구간의 음성을 중복 포함하지 않으며, 텍스트 전체에 해당 음성 조각의 시작·종료 시간을 붙입니다. 무음 경계가 문장 경계와 항상 같지는 않아 한 자막에 여러 문장 또는 문장 일부가 들어갈 수 있습니다. 기존 전체 전사 원본 JSON을 복구하는 호환 경로(`--transcription-response`)만 종전의 30초 Whisper 재전사와 `gpt-4o-transcribe` 대체 모델을 유지합니다. 이때도 각 조각의 첫 재전사는 추가 복구 예산과 별개로 보장합니다.
+
+새 `*.json`은 `format: chunked_transcription_v1`인 병합본입니다. `processed_until`은 처리한 원본 시각, `processing_complete`는 끝까지 처리했는지, `complete`는 검토 필요 구간도 없는지를 나타냅니다. 누락이 남으면 콘솔에 검토 필요 구간 수를 표시하며 `needs_review`에도 기록합니다. API·저장 오류로 중단되더라도 앞서 저장한 조각 응답과 병합본은 유지합니다. 자동 이어하기는 아직 지원하지 않으며, 이 병합본을 기존 전체 원본 JSON용 `--transcription-response`에 넣는 것은 차단합니다.
+
+원본 API 응답 `*.json`은 유지하며, 필터링·복구 결과는 `*.recovered.json`, 시도별 상태는 `*.recovery.json`, 조각 음성과 응답은 `*_recovery/`에 저장합니다. `recovered`는 검사를 통과했다는 뜻이며 정확성 보장은 아닙니다. 무음은 `skipped`, 복구 실패·상한 도달은 `needs_review`로 기록하고, **이 상태 문구를 TXT·번역·SRT에 넣지 않습니다.** 음성 추출 실패도 기록만 남깁니다. 디스크 저장 실패나 인증·한도 오류는 중단합니다. 이미 생성된 자막·영상은 자동으로 수정하지 않습니다.
+
+Iris 분류 강의에는 짧은 전용 텍스트북을 사용하세요. `sepal`, `petal`, `length`, `width`의 실제 영어 표기를 `[Whisper Rules]`로 전사에 전달합니다. 모호한 `배틀링스`를 특정 특성으로 일괄 치환하지 않습니다.
+
+```powershell
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --pipeline --textbook-file 'textbooks\aiml_iris.txt'
+```
+
+이전 버전의 전체 전사 원본 JSON에서 의심 구간만 복구하려면 **그 JSON을 만들 때 사용한 동일 MP3**와 새로운 출력 폴더를 지정합니다. MP3와 JSON의 시간축·영상 대응 여부는 사용자가 확인해야 합니다. 이 명령은 전사까지만 실행하며 기존 번역·영상은 변경하지 않습니다. 새 분할 전사의 병합본에는 사용할 수 없습니다.
+
+```powershell
+& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_runs\classifier-s_8z6d05\audio\classifier.mp3' --transcribe --transcription-response 'output_runs\classifier-s_8z6d05\transcripts\classifier.json' --textbook-file 'textbooks\aiml_iris.txt' --transcript-output-dir 'output_runs\classifier_repaired\transcripts'
+```
+
+짧은 구간의 기존 힌트·Iris 힌트·대체 모델 비교와 강의 화면 캡처는 다음 명령으로 수행합니다(유료 API). 결과 시간은 잘라낸 음성 기준이며 `comparison.json`에 원본 시작 시각이 기록됩니다.
+
+```powershell
+& 'D:\Miniconda3\envs\translator\python.exe' check_iris_terms.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --start 1789 --seconds 30
+```
 
 ## 8. GUI는 영상 플레이어와 텍스트북 편집기
 
@@ -353,7 +412,7 @@ Measure the voltage.
 
 루트의 `OpenAITranscriber.py`에는 `opeanai` import 오타 등이 있는 미완성 코드가 남아 있습니다. 현재 CLI·파이프라인이 사용하는 전사 구현은 **`audio_transcriber.py`의 `AudioTranscriber`**입니다.
 
-자동 음성 분할, 전체 파이프라인 이어하기, 텍스트북 라이브러리 선택·영상별 과목 연결은 현재 구현되어 있지 않습니다.
+전사 복구 시 음성 분할을 지원합니다. 25MB 이상 입력의 자동 분할, 전체 파이프라인 이어하기, 텍스트북 라이브러리 선택·영상별 과목 연결은 현재 구현되어 있지 않습니다.
 
 ## 10. 테스트로 코드의 약속 확인하기
 

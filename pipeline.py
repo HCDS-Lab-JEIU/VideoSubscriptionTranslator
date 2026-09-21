@@ -14,7 +14,7 @@ from video_subtitler import VideoSubtitler
 
 
 def run_pipeline(video_path: Path, output_root: Path, api_key_file: Path,
-                 textbook_file: Path) -> Path:
+                 textbook_file: Path, *, course: str | None = None) -> Path:
     video = MediaFile(video_path)
     if not video.file_path.is_file():
         raise FileNotFoundError(f"입력 영상이 없습니다: {video.file_path}")
@@ -24,7 +24,9 @@ def run_pipeline(video_path: Path, output_root: Path, api_key_file: Path,
         raise ValueError("전체 파이프라인에는 MP4, MKV, MOV 등의 영상 파일을 입력하세요.")
     # 오래 걸리는 추출 전에 필수 설정을 검증합니다. 키는 출력하지 않습니다.
     load_api_key(api_key_file)
-    Textbook.load(textbook_file)
+    selected = Textbook.load(textbook_file).select_course(course)
+    course = selected.course
+    print(f"선택 과목: {course}", flush=True)
     root = Path(output_root).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
     folder = Path(tempfile.mkdtemp(prefix=f"{video.file_path.stem}-", dir=root))
@@ -36,10 +38,13 @@ def run_pipeline(video_path: Path, output_root: Path, api_key_file: Path,
         audio = AudioExtractor(folder / "audio").extract(video)
         stage = "한국어 전사"
         print(f"[2/5] {stage}", flush=True)
-        transcript = AudioTranscriber(api_key_file, folder / "transcripts", textbook_file).transcribe(audio)
+        transcript = AudioTranscriber(api_key_file, folder / "transcripts", textbook_file, course=course).transcribe(audio)
+        if not transcript.file_path.read_text(encoding="utf-8-sig").strip():
+            print("자막으로 만들 발화가 없습니다. 번역·합성을 생략하고 원본 영상을 반환합니다.", flush=True)
+            return video.file_path
         stage = "영어 번역"
         print(f"[3/5] {stage}", flush=True)
-        translated = SubtitleTranslator(api_key_file, textbook_file).translate(transcript.file_path)
+        translated = SubtitleTranslator(api_key_file, textbook_file, course=course).translate(transcript.file_path)
         stage = "SRT 생성"
         print(f"[4/5] {stage}", flush=True)
         srt = SrtWriter().write(translated, folder / f"{translated.stem}.srt")

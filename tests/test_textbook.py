@@ -8,6 +8,15 @@ from textbook import Textbook
 
 
 class TextbookTests(unittest.TestCase):
+    def test_gpt_prompt_includes_selected_term_spellings_and_no_fabrication_rules(self):
+        book = Textbook.parse("[Course]\nAI/ML\n[Terminology]\n꽃잎 = petal\n꽃받침 = sepal\n"
+                              "[Course]\n회로\n[Terminology]\n전압 = voltage\n")
+        prompt = book.select_course("AI/ML").accurate_transcription_prompt()
+        self.assertIn("꽃잎 (petal)", prompt)
+        self.assertIn("꽃받침 (sepal)", prompt)
+        self.assertNotIn("voltage", prompt)
+        self.assertIn("추측해 채우지 마세요", prompt)
+
     def load(self, content):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "textbook.txt"
@@ -24,22 +33,41 @@ class TextbookTests(unittest.TestCase):
         self.assertEqual([c.name for c in book.courses], ["회로", "프로그래밍"])
         self.assertEqual(book.courses[0].terminology["소스"], "source terminal")
         self.assertEqual(book.courses[1].terminology["소스"], "source code")
-        whisper = book.transcription_prompt()
-        translation = book.translation_prompt()
+        selected = book.select_course("회로")
+        whisper = selected.transcription_prompt()
+        translation = selected.translation_prompt()
         for prompt in (whisper, translation):
             self.assertIn("COMMON", prompt)
             self.assertIn("회로", prompt)
-            self.assertIn("프로그래밍", prompt)
+            self.assertNotIn("프로그래밍", prompt)
         self.assertIn("WHISPER", whisper)
+        self.assertTrue(whisper.endswith("WHISPER"))
         self.assertNotIn("TRANSLATION", whisper)
         self.assertNotIn("source terminal", whisper)
         self.assertNotIn("source code", whisper)
         self.assertIn("TRANSLATION", translation)
         self.assertNotIn("WHISPER", translation)
         self.assertIn("Course: 회로\n\nTerminology:\n소스 = source terminal", translation)
-        self.assertIn("Course: 프로그래밍\n\nTerminology:\n소스 = source code", translation)
+        self.assertNotIn("source code", translation)
+        self.assertIn("source code", book.select_course("프로그래밍").translation_prompt())
         with self.assertRaises(ValueError):
             _ = book.terminology
+
+    def test_course_selection_rejects_missing_unknown_and_ambiguous_names(self):
+        book = Textbook.parse("[Course]\nAI Basics\n[Terminology]\n기초 = basics\n"
+                              "[Course]\nAI Advanced\n[Terminology]\n심화 = advanced\n")
+        for selector in (None, "", "AI", "missing", "0", "3", "-1"):
+            with self.subTest(selector=selector), self.assertRaises(ValueError):
+                book.select_course(selector)
+        self.assertEqual(book.select_course("2").course, "AI Advanced")
+        self.assertEqual(book.select_course("basics").course, "AI Basics")
+        self.assertEqual(book.select_course(" AI BASICs ").course, "AI Basics")
+        for method in (book.transcription_prompt, book.translation_prompt):
+            with self.assertRaises(ValueError):
+                method()
+        selected = book.select_course("1")
+        selected.terminology["새 단어"] = "new"
+        self.assertNotIn("새 단어", book.courses[0].terminology)
 
     def test_legacy_format_and_case_insensitive_headers(self):
         book = self.load("[course]\n회로\n[TERMINOLOGY]\n전압 = voltage\n"

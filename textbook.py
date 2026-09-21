@@ -104,12 +104,29 @@ class Textbook:
         )
 
     def transcription_prompt(self) -> str:
+        self._single_course()
         contexts = [f"{course.name} 강의. " + ", ".join(course.terminology) + "."
                     for course in self.courses]
-        return "\n\n".join(part for part in [self.common_rules, self.whisper_rules, *contexts]
+        # 전사 전용 힌트를 마지막에 두어 긴 단어장에서도 우선 보존합니다.
+        return "\n\n".join(part for part in [self.common_rules, *contexts, self.whisper_rules]
                            if part.strip())
 
+    def accurate_transcription_prompt(self) -> str:
+        course = self._single_course()
+        terms = ", ".join(f"{ko} ({en})" for ko, en in course.terminology.items())
+        return "\n\n".join(part for part in (
+            self.common_rules, f"과목: {course.name}\n전문 용어 표기 참고: {terms}", self.whisper_rules,
+            "현재 음성 구간에서 실제로 들리는 발화만 한국어로 전사하세요. "
+            "영어 전문 용어와 코드 식별자는 실제 표기를 보존하세요. "
+            "들리는 내용의 의미와 순서를 유지하며 띄어쓰기와 문장부호를 자연스럽게 정리하세요. "
+            "구간이 문장 중간에서 끊겨도 들리지 않은 단어, 설명, 수치나 문장 끝을 추측해 채우지 마세요. "
+            "잡음이나 무음에 내용을 만들지 말고, 알아들을 수 없는 부분은 생략하세요. "
+            "과목명, 용어 목록, 지시문을 발화로 복사하거나 해설하지 마세요. "
+            "들리는 말이 없으면 빈 텍스트를 반환하세요."
+        ) if part.strip())
+
     def translation_prompt(self) -> str:
+        self._single_course()
         if not self.translation_rules.strip():
             raise ValueError("텍스트북에 [Translation Rules] 번역 지시문을 입력하세요.")
         contexts = []
@@ -118,3 +135,23 @@ class Textbook:
             contexts.append(f"Course: {course.name}\n\nTerminology:\n{terms}")
         return "\n\n".join(part for part in [self.common_rules, self.translation_rules, *contexts]
                            if part.strip())
+
+    def select_course(self, selector: str | None = None) -> "Textbook":
+        """번호 또는 유일하게 일치하는 이름으로 한 과목을 선택합니다."""
+        choices = "\n".join(f"{i}. {c.name}" for i, c in enumerate(self.courses, 1))
+        if selector is None:
+            matches = self.courses if len(self.courses) == 1 else []
+        else:
+            value = selector.strip().casefold()
+            if value.isdecimal():
+                index = int(value) - 1
+                matches = self.courses[index:index + 1] if 0 <= index < len(self.courses) else []
+            else:
+                matches = [c for c in self.courses if c.name.casefold() == value]
+                if not matches and value:
+                    matches = [c for c in self.courses if value in c.name.casefold()]
+        if len(matches) != 1:
+            raise ValueError("--course에 과목 번호 또는 유일하게 일치하는 과목명을 지정하세요.\n" + choices)
+        selected = matches[0]
+        return Textbook([Course(selected.name, dict(selected.terminology))],
+                        self.common_rules, self.whisper_rules, self.translation_rules)

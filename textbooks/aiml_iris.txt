@@ -1,0 +1,22 @@
+[Whisper Rules]
+한국어로 Iris 분류와 decision tree를 설명하는 강의입니다. 특성 이름은 sepal length, sepal width, petal length, petal width입니다. 품종은 setosa, versicolor, virginica입니다.
+
+[Translation Rules]
+Translate Korean lecture speech into natural English subtitles without summarizing.
+Preserve technical meaning and distinguish sepal (꽃받침) from petal (꽃잎).
+Use the glossary when supported by context; do not guess which feature an ambiguous word means.
+Translate an explicit uncertain-audio marker as [Unclear audio — review required].
+
+[Course]
+인공지능·머신러닝 응용 (AI/ML Applications) — Iris classifier
+
+[Terminology]
+꽃받침 = sepal
+꽃잎 = petal
+꽃받침 길이 = sepal length
+꽃받침 너비 = sepal width
+꽃잎 길이 = petal length
+꽃잎 너비 = petal width
+의사결정나무 = decision tree
+분류기 = classifier
+붓꽃 = Iris
