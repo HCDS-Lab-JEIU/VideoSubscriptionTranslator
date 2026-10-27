@@ -24,15 +24,15 @@ def check_bundle(bundle: Path) -> None:
             raise RuntimeError(f"{args[0]} failed: {result.stdout}\n{result.stderr}")
         return result.stdout
 
-    assert "--pipeline" in run(cli, "--help")
+    assert "--parallel-render" in run(cli, "--help")
     assert "Circuits" in run(cli, "--list-courses")
     ffmpeg, = (bundle / "_internal" / "imageio_ffmpeg" / "binaries").glob("*.exe")
     with tempfile.TemporaryDirectory(prefix="자막 앱 검증 ") as directory:
         root = Path(directory)
         video = root / "강의.mp4"
         run(ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
-            "color=c=black:s=320x240:d=1", "-f", "lavfi", "-i",
-            "sine=frequency=440:duration=1", "-c:v", "libx264", "-c:a", "aac", video)
+            "color=c=black:s=320x240:r=10:d=61", "-f", "lavfi", "-i",
+            "sine=frequency=440:duration=61", "-c:v", "libx264", "-c:a", "aac", video)
         # Extraction is directed to the bundle's public default output directory.
         # Use a unique source name so an existing result is never overwritten.
         unique_video = root / f"{root.name}.mp4"
@@ -46,15 +46,21 @@ def check_bundle(bundle: Path) -> None:
             if audio.parent.is_dir() and not any(audio.parent.iterdir()):
                 audio.parent.rmdir()
         transcript = root / "영어.txt"
-        transcript.write_text("[00:00:00.000, 00:00:00.900] Test subtitle.\n", encoding="utf-8")
+        transcript.write_text("[00:00:00.000, 00:00:00.900] Test subtitle.\n"
+                              "[00:00:59.700, 00:01:00.500] Boundary subtitle.\n", encoding="utf-8")
         srt = root / "영어.srt"
         output = root / "자막.mp4"
         run(cli, unique_video, "--render", "--subtitle-file", transcript,
             "--srt-output", srt, "--video-output", output)
         assert "Test subtitle." in srt.read_text(encoding="utf-8-sig")
         assert output.stat().st_size > 0
+        parallel_output = root / "병렬 자막.mp4"
+        log = run(cli, unique_video, "--render", "--parallel-render", "--subtitle-file", transcript,
+                  "--srt-output", srt, "--video-output", parallel_output)
+        assert "2개 구간" in log
+        assert parallel_output.stat().st_size > 0
     run(bundle / "VideoSubtitleTranslator.exe", "--smoke-test")
-    print("PASS: bundled CLI, textbook, FFmpeg extraction/render and GUI startup")
+    print("PASS: bundled CLI, textbook, FFmpeg serial/parallel render and GUI startup")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,8 @@ def main() -> int:
     action.add_argument("--render", action="store_true", help="원본 영상에 영어 자막을 합성한 MP4 생성 (로컬 작업)")
     action.add_argument("--list-courses", action="store_true", help="텍스트북 과목 목록 출력 (API 호출 없음)")
     parser.add_argument("--course", help="과목 번호 또는 유일하게 일치하는 과목명 (예: 3, AI/ML)")
+    parser.add_argument("--parallel-render", action="store_true",
+                        help="영상 자막 합성을 60초 구간으로 나눠 병렬 처리 (기본: 기존 순차 처리)")
     parser.add_argument("--pipeline-output-dir", type=Path, default=project_dir / "output_runs",
                         help="전체 실행 결과 폴더의 상위 경로 (실행마다 새 하위 폴더 생성)")
     parser.add_argument("--subtitle-file", type=Path,
@@ -45,6 +47,8 @@ def main() -> int:
     args = parser.parse_args()
     if not args.list_courses and args.filepath is None:
         parser.error("입력 파일 경로가 필요합니다.")
+    if args.parallel_render and any((args.extract, args.transcribe, args.translate, args.make_srt, args.list_courses)):
+        parser.error("--parallel-render는 전체 파이프라인 또는 --render에서만 사용할 수 있습니다.")
     if args.transcription_response and (not args.transcribe or args.filepath is None or args.filepath.suffix.lower() != ".mp3"):
         parser.error("--transcription-response는 동일 MP3 입력의 --transcribe와 함께 사용하세요.")
     try:
@@ -64,7 +68,7 @@ def main() -> int:
             except ImportError:
                 raise ValueError("python -m pip install -r requirements.txt 를 실행하세요.") from None
             result = run_pipeline(args.filepath, args.pipeline_output_dir, args.api_key_file, args.textbook_file,
-                                  course=args.course)
+                                  course=args.course, parallel_render=args.parallel_render)
             print(f"전체 파이프라인 완료: {result}", flush=True)
             return 0
         if args.make_srt or args.render:
@@ -77,7 +81,8 @@ def main() -> int:
                 from video_subtitler import VideoSubtitler, VideoSubtitleError
                 video_path = args.video_output or project_dir / "output_videos" / f"{subtitle_text.stem}.mp4"
                 try:
-                    result = VideoSubtitler().render(args.filepath, srt, video_path)
+                    result = VideoSubtitler().render(args.filepath, srt, video_path,
+                                                    parallel=args.parallel_render)
                 except VideoSubtitleError as exc:
                     print(f"영상 생성 실패: {exc}", file=sys.stderr)
                     return 1

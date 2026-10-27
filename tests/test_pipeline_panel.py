@@ -62,6 +62,8 @@ class PipelinePanelTests(unittest.TestCase):
             self.panel.start_pipeline()
         self.assertEqual(start.call_count, 1)
         args = start.call_args.args[1]
+        self.assertFalse(self.panel.parallel_render_checkbox.isChecked())
+        self.assertNotIn("--parallel-render", args)
         self.assertEqual(args[args.index("--course") + 1], "AI/ML Applications")
         snapshot = Path(args[args.index("--textbook-file") + 1])
         self.book.write_text("changed", encoding="utf-8")
@@ -96,6 +98,16 @@ class PipelinePanelTests(unittest.TestCase):
         self.assertNotIn("-u", args)
         self.assertNotIn(str(self.panel.PROJECT_DIR / "__main__.py"), args)
         self.panel._finished(1, QProcess.ExitStatus.NormalExit)
+
+    def test_checked_parallel_option_reaches_cli_and_is_locked_during_run(self):
+        self.panel.course_combo.setCurrentIndex(1)
+        self.panel.parallel_render_checkbox.setChecked(True)
+        with patch.object(self.panel.process, "start") as start:
+            self.panel.start_pipeline()
+        self.assertIn("--parallel-render", start.call_args.args[1])
+        self.assertFalse(self.panel.parallel_render_checkbox.isEnabled())
+        self.panel._finished(1, QProcess.ExitStatus.NormalExit)
+        self.assertTrue(self.panel.parallel_render_checkbox.isEnabled())
 
     def test_split_utf8_logs_and_failure_restore_controls(self):
         self.panel.course_combo.setCurrentIndex(1)

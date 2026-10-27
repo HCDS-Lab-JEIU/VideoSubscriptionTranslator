@@ -14,7 +14,8 @@ from video_subtitler import VideoSubtitler
 
 
 def run_pipeline(video_path: Path, output_root: Path, api_key_file: Path,
-                 textbook_file: Path, *, course: str | None = None) -> Path:
+                 textbook_file: Path, *, course: str | None = None,
+                 parallel_render: bool = False) -> Path:
     video = MediaFile(video_path)
     if not video.file_path.is_file():
         raise FileNotFoundError(f"입력 영상이 없습니다: {video.file_path}")
@@ -50,7 +51,9 @@ def run_pipeline(video_path: Path, output_root: Path, api_key_file: Path,
         srt = SrtWriter().write(translated, folder / f"{translated.stem}.srt")
         stage = "자막 영상 생성"
         print(f"[5/5] {stage}", flush=True)
-        result = VideoSubtitler().render(video.file_path, srt, folder / f"{translated.stem}.mp4")
+        render_options = {"parallel": True} if parallel_render else {}
+        result = VideoSubtitler().render(video.file_path, srt, folder / f"{translated.stem}.mp4",
+                                        **render_options)
     except (OSError, ValueError, RuntimeError):
         print(f"중단 단계: {stage}. 완료된 중간 결과는 {folder}에 보관됩니다.", flush=True)
         raise

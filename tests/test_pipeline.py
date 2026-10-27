@@ -24,10 +24,11 @@ class PipelineTests(unittest.TestCase):
         self.book = self.root / "book.txt"
         self.book.write_text("[Course]\n회로\n[Terminology]\n전압 = voltage\n", encoding="utf-8")
 
-    def run_pipeline(self):
-        return run_pipeline(self.video, self.root / "runs", self.key, self.book)
+    def run_pipeline(self, **options):
+        return run_pipeline(self.video, self.root / "runs", self.key, self.book, **options)
 
     def test_stage_handoff_srt_and_unique_runs(self):
+        render_modes = []
         def extract(extractor, video):
             self.assertEqual(video.file_path, self.video)
             path = extractor.output_dir / f"{video.file_path.stem}.mp3"
@@ -50,7 +51,8 @@ class PipelineTests(unittest.TestCase):
             path.write_text("[00:00:00.000, 00:00:01.000] Voltage\n", encoding="utf-8")
             return path
 
-        def render(renderer, video, srt, output):
+        def render(renderer, video, srt, output, *, parallel=False):
+            render_modes.append(parallel)
             self.assertEqual(video, self.video)
             self.assertEqual(srt.read_text(encoding="utf-8"),
                              "1\n00:00:00,000 --> 00:00:01,000\nVoltage\n\n")
@@ -63,6 +65,8 @@ class PipelineTests(unittest.TestCase):
              patch("pipeline.VideoSubtitler.render", autospec=True, side_effect=render):
             first = self.run_pipeline()
             second = self.run_pipeline()
+            self.run_pipeline(parallel_render=True)
+        self.assertEqual(render_modes, [False, False, True])
         self.assertNotEqual(first, second)
         self.assertEqual(first.name, "강의_en.mp4")
         self.assertEqual(first.read_bytes(), b"rendered")
@@ -109,6 +113,12 @@ class PipelineTests(unittest.TestCase):
              patch("pipeline.run_pipeline", return_value=self.root / "final.mp4") as run:
             self.assertEqual(cli.main(), 0)
             self.assertEqual(run.call_args.args[0], self.video)
+            self.assertFalse(run.call_args.kwargs["parallel_render"])
+        with patch("sys.argv", ["__main__.py", str(self.video), "--parallel-render",
+                                "--textbook-file", str(self.book)]), \
+             patch("pipeline.run_pipeline", return_value=self.root / "final.mp4") as run:
+            self.assertEqual(cli.main(), 0)
+            self.assertTrue(run.call_args.kwargs["parallel_render"])
         with patch("sys.argv", ["__main__.py", str(self.video), "--pipeline", "--textbook-file", str(self.book)]), \
              patch("pipeline.run_pipeline", side_effect=RuntimeError("번역 실패")), \
              contextlib.redirect_stderr(io.StringIO()) as error:

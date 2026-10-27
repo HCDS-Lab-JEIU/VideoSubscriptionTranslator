@@ -7,7 +7,7 @@ import sys
 from PyQt6.QtCore import QProcess, QProcessEnvironment, QTemporaryDir, QUrl, pyqtSignal
 from PyQt6.QtGui import QDesktopServices
 from PyQt6.QtWidgets import (
-    QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
+    QCheckBox, QComboBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel, QLineEdit,
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout, QWidget,
 )
 
@@ -63,6 +63,12 @@ class PipelinePanel(QWidget):
         output_button = QPushButton("저장 위치 선택")
         output_button.clicked.connect(self.choose_output)
         form.addRow("결과 저장 위치", self._row(self.output_field, output_button))
+        self.parallel_render_checkbox = QCheckBox("영상 자막 합성 구간별 병렬 처리")
+        self.parallel_render_checkbox.setToolTip(
+            "체크하면 60초 구간을 최대 4개씩 동시 처리합니다. "
+            "CPU·메모리·임시 디스크 사용량이 증가하며, 해제하면 기존 방식으로 처리합니다."
+        )
+        form.addRow("렌더링", self.parallel_render_checkbox)
         layout.addWidget(self.inputs)
         layout.addWidget(QLabel("영상 → 한국어 전사 → 영어 번역 → 자막 영상 · 실행 시 유료 API 사용"))
         actions = QHBoxLayout()
@@ -194,6 +200,8 @@ class PipelinePanel(QWidget):
         if getattr(sys, "frozen", False):
             program = str(self.PROJECT_DIR / "VideoSubtitleTranslator-CLI.exe")
             prefix = []
+        if self.parallel_render_checkbox.isChecked():
+            prefix += ["--parallel-render"]
         self.process.start(program, prefix + [
             str(self.video_path), "--pipeline",
             "--textbook-file", str(snapshot), "--course", book.course,

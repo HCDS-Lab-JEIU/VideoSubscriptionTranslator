@@ -14,7 +14,7 @@ class VideoSubtitleError(RuntimeError):
 
 class VideoSubtitler:
     def render(self, video_path: str | Path, srt_path: str | Path,
-               output_path: str | Path) -> Path:
+               output_path: str | Path, *, parallel: bool = False) -> Path:
         video = Path(video_path).expanduser().resolve()
         subtitles = Path(srt_path).expanduser().resolve()
         destination = Path(output_path).expanduser().resolve()
@@ -35,37 +35,44 @@ class VideoSubtitler:
             # 고정된 상대 파일명으로 Windows 드라이브 문자와 특수문자 필터 이스케이프를 피합니다.
             shutil.copyfile(subtitles, folder / "captions.srt")
             temporary_video = folder / "rendered.mp4"
-            log_path = folder / "ffmpeg.log"
-            command = [
-                executable, "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
-                "-i", str(video), "-map", "0:v:0", "-map", "0:a:0?",
-                "-vf", "subtitles=filename=captions.srt:charenc=UTF-8:"
-                "force_style='FontName=Arial,FontSize=18,Outline=1,Shadow=1,MarginV=20',"
-                "pad=ceil(iw/2)*2:ceil(ih/2)*2",
-                "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
-                "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
-                "-progress", "pipe:1", "-stats_period", "5", "-nostats", str(temporary_video),
-            ]
-            print("자막 MP4 생성 중... (로컬 FFmpeg)", flush=True)
-            with log_path.open("w", encoding="utf-8") as log:
-                with subprocess.Popen(command, cwd=folder, stdout=subprocess.PIPE, stderr=log,
-                                      text=True, encoding="utf-8", errors="replace") as process:
-                    try:
-                        for progress in process.stdout:
-                            if progress.startswith("out_time="):
-                                print(f"영상 처리 위치: {progress.strip().split('=', 1)[1]}", flush=True)
-                        returncode = process.wait()
-                    except BaseException:
-                        process.terminate()
+            if parallel:
+                from parallel_video_renderer import render_parallel
+                try:
+                    render_parallel(executable, video, folder, temporary_video)
+                except (OSError, RuntimeError, subprocess.TimeoutExpired) as exc:
+                    raise VideoSubtitleError(f"병렬 자막 영상 생성에 실패했습니다.\n{exc}") from exc
+            else:
+                log_path = folder / "ffmpeg.log"
+                command = [
+                    executable, "-hide_banner", "-loglevel", "error", "-nostdin", "-n",
+                    "-i", str(video), "-map", "0:v:0", "-map", "0:a:0?",
+                    "-vf", "subtitles=filename=captions.srt:charenc=UTF-8:"
+                    "force_style='FontName=Arial,FontSize=18,Outline=1,Shadow=1,MarginV=20',"
+                    "pad=ceil(iw/2)*2:ceil(ih/2)*2",
+                    "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                    "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart",
+                    "-progress", "pipe:1", "-stats_period", "5", "-nostats", str(temporary_video),
+                ]
+                print("자막 MP4 생성 중... (로컬 FFmpeg)", flush=True)
+                with log_path.open("w", encoding="utf-8") as log:
+                    with subprocess.Popen(command, cwd=folder, stdout=subprocess.PIPE, stderr=log,
+                                          text=True, encoding="utf-8", errors="replace") as process:
                         try:
-                            process.wait(timeout=5)
-                        except subprocess.TimeoutExpired:
-                            process.kill()
-                            process.wait()
-                        raise
-            if returncode:
-                details = log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
-                raise VideoSubtitleError(f"FFmpeg 자막 영상 생성에 실패했습니다.\n{details}")
+                            for progress in process.stdout:
+                                if progress.startswith("out_time="):
+                                    print(f"영상 처리 위치: {progress.strip().split('=', 1)[1]}", flush=True)
+                            returncode = process.wait()
+                        except BaseException:
+                            process.terminate()
+                            try:
+                                process.wait(timeout=5)
+                            except subprocess.TimeoutExpired:
+                                process.kill()
+                                process.wait()
+                            raise
+                if returncode:
+                    details = log_path.read_text(encoding="utf-8", errors="replace")[-4000:]
+                    raise VideoSubtitleError(f"FFmpeg 자막 영상 생성에 실패했습니다.\n{details}")
             with destination.open("xb") as output:
                 try:
                     with temporary_video.open("rb") as source:
