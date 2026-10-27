@@ -1,0 +1,14 @@
+Video Subtitle Translator — Windows x64
+
+1. ZIP 전체를 쓰기 가능한 폴더에 압축 해제하세요. _internal 폴더도 필요합니다.
+2. secrets/openai_api_key.txt를 만들고 OpenAI API 키만 한 줄로 입력하세요.
+3. VideoSubtitleTranslator.exe를 실행하세요.
+4. 영상 선택 → 텍스트북 불러오기 → 과목 선택 → 파이프라인 실행.
+
+기본 텍스트북은 secrets/textbook.txt입니다. Tools → 텍스트북 편집기에서
+강의 용어와 번역 규칙을 수정하고 저장한 뒤 다시 불러오세요.
+결과는 output_runs에 저장되며 앱에서 저장 위치를 바꿀 수 있습니다.
+전사와 번역은 인터넷 연결과 유료 OpenAI API를 사용합니다.
+Python과 FFmpeg를 별도로 설치할 필요가 없습니다.
+
+명령줄 도움말: .\VideoSubtitleTranslator-CLI.exe --help

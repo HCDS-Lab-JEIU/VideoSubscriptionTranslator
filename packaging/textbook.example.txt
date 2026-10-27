@@ -1,0 +1,17 @@
+[Common Rules]
+Preserve technical terminology and meaning.
+
+[Whisper Rules]
+한국어 강의. 들리지 않은 단어나 수치는 추측하지 마세요.
+
+[Translation Rules]
+Translate Korean lecture speech into natural English subtitles.
+Do not summarize or invent information.
+
+[Course]
+회로 (Circuits)
+
+[Terminology]
+전압 = voltage
+전류 = current
+저항 = resistance

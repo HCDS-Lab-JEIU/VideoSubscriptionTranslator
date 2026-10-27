@@ -86,6 +86,17 @@ class PipelinePanelTests(unittest.TestCase):
             start.assert_not_called()
         self.assertFalse(self.panel.busy)
 
+    def test_frozen_app_launches_bundled_cli_without_python_arguments(self):
+        self.panel.course_combo.setCurrentIndex(1)
+        with patch("sys.frozen", True, create=True), patch.object(self.panel.process, "start") as start:
+            self.panel.start_pipeline()
+        program, args = start.call_args.args
+        self.assertEqual(Path(program), self.panel.PROJECT_DIR / "VideoSubtitleTranslator-CLI.exe")
+        self.assertEqual(args[0], str(self.video))
+        self.assertNotIn("-u", args)
+        self.assertNotIn(str(self.panel.PROJECT_DIR / "__main__.py"), args)
+        self.panel._finished(1, QProcess.ExitStatus.NormalExit)
+
     def test_split_utf8_logs_and_failure_restore_controls(self):
         self.panel.course_combo.setCurrentIndex(1)
         self.panel._set_busy(True)

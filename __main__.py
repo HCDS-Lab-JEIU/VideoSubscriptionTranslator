@@ -5,11 +5,12 @@ from pathlib import Path
 import sys
 
 from audio_extractor import AudioExtractionError, AudioExtractor
+from app_paths import app_directory
 from media_file import MediaFile
 
 
 def main() -> int:
-    project_dir = Path(__file__).resolve().parent
+    project_dir = app_directory()
     parser = argparse.ArgumentParser(description="MP3 추출, 한국어 전사, 영어 자막 번역을 수행합니다.")
     parser.add_argument("filepath", type=Path, nargs="?", help="비디오/오디오 또는 한국어 자막 TXT 경로")
     action = parser.add_mutually_exclusive_group()

@@ -12,13 +12,14 @@ from PyQt6.QtWidgets import (
 )
 
 from api_config import load_api_key
+from app_paths import app_directory
 from textbook import DEFAULT_TEXTBOOK_PATH, Textbook
 
 
 class PipelinePanel(QWidget):
     video_requested = pyqtSignal()
     busy_changed = pyqtSignal(bool)
-    PROJECT_DIR = Path(__file__).resolve().parents[1]
+    PROJECT_DIR = app_directory()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -188,8 +189,13 @@ class PipelinePanel(QWidget):
         self.process.setProcessEnvironment(env)
         self.process.setWorkingDirectory(str(self.PROJECT_DIR))
         self._set_busy(True)
-        self.process.start(sys.executable, [
-            "-u", str(self.PROJECT_DIR / "__main__.py"), str(self.video_path), "--pipeline",
+        program = sys.executable
+        prefix = ["-u", str(self.PROJECT_DIR / "__main__.py")]
+        if getattr(sys, "frozen", False):
+            program = str(self.PROJECT_DIR / "VideoSubtitleTranslator-CLI.exe")
+            prefix = []
+        self.process.start(program, prefix + [
+            str(self.video_path), "--pipeline",
             "--textbook-file", str(snapshot), "--course", book.course,
             "--api-key-file", self.key_field.text(), "--pipeline-output-dir", self.output_field.text(),
         ])

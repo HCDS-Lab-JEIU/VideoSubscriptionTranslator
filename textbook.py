@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass, field
 from pathlib import Path
+from app_paths import app_directory
 
 
-DEFAULT_TEXTBOOK_PATH = Path(__file__).resolve().parent / "secrets" / "textbook.txt"
+DEFAULT_TEXTBOOK_PATH = app_directory() / "secrets" / "textbook.txt"
 
 
 @dataclass
