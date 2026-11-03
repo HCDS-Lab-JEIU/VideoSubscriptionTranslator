@@ -103,10 +103,20 @@ class AudioTranscriber:
                         if exc.status_code in (401, 403) or exc.status_code == 429:
                             raise
                         fallback_unavailable = model == "gpt-4o-transcribe" and exc.status_code in (400, 404)
+                        # 길이 오류만 구간 복구 대상으로 처리합니다. 설정 오류는 계속 중단합니다.
+                        body = exc.body if isinstance(exc.body, dict) else {}
+                        error = body.get("error", body)
+                        error = error if isinstance(error, dict) else {}
+                        message = str(error.get("message", "")).casefold()
+                        audio_too_short = exc.status_code == 400 and (
+                            error.get("code") == "audio_too_short"
+                            or ("audio" in message and "too short" in message)
+                        )
                         if (exc.status_code < 500 and exc.status_code not in (408, 409)
-                                and not fallback_unavailable):
+                                and not fallback_unavailable and not audio_too_short):
                             raise
-                        raw = {"error": f"HTTP {exc.status_code}", "segments": None}
+                        raw = {"error": "audio_too_short" if audio_too_short else f"HTTP {exc.status_code}",
+                               "segments": None}
                     except APIConnectionError:
                         raw = {"error": "connection_failed", "segments": None}
                     with destination.open("x", encoding="utf-8") as output:

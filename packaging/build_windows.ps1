@@ -7,10 +7,17 @@ if (-not (Test-Path -LiteralPath $PythonExe)) {
     throw "translator interpreter not found: $PythonExe"
 }
 Push-Location $ProjectRoot
+$PreviousPath = $env:PATH
 try {
+    # Conda native dependencies must be visible to PyInstaller's DLL discovery.
+    $CondaLibraryBin = Join-Path (Split-Path -Parent $PythonExe) 'Library\bin'
+    if (-not (Test-Path -LiteralPath $CondaLibraryBin)) {
+        throw "Conda Library/bin not found: $CondaLibraryBin"
+    }
+    $env:PATH = "$CondaLibraryBin;$PreviousPath"
     & $PythonExe -c "import sys; from pathlib import Path; assert Path(sys.prefix).name == 'translator', 'Use the translator environment'; import PyInstaller, PyQt6, openai, imageio_ffmpeg, mutagen"
     if ($LASTEXITCODE -ne 0) { throw 'Install packaging/requirements-build.txt in translator first.' }
-    & $PythonExe -m PyInstaller --noconfirm --distpath "$PSScriptRoot/dist" --workpath "$PSScriptRoot/build" "$PSScriptRoot/windows.spec"
+    & $PythonExe -m PyInstaller --clean --noconfirm --distpath "$PSScriptRoot/dist" --workpath "$PSScriptRoot/build" "$PSScriptRoot/windows.spec"
     if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed.' }
     $Bundle = Join-Path $PSScriptRoot 'dist/VideoSubtitleTranslator'
     New-Item -ItemType Directory -Force -Path "$Bundle/secrets" | Out-Null
@@ -21,5 +28,6 @@ try {
     Compress-Archive -Path $Bundle -DestinationPath "$PSScriptRoot/VideoSubtitleTranslator-windows-x64.zip" -Force
     Write-Host "Built: $PSScriptRoot/VideoSubtitleTranslator-windows-x64.zip"
 } finally {
+    $env:PATH = $PreviousPath
     Pop-Location
 }

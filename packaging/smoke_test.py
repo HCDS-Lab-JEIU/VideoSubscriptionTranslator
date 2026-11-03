@@ -10,6 +10,10 @@ import tempfile
 def check_bundle(bundle: Path) -> None:
     bundle = bundle.resolve()
     cli = bundle / "VideoSubtitleTranslator-CLI.exe"
+    # Offline CLI/GUI startup can pass even when HTTPS dependencies are missing.
+    for name in ("libcrypto-3-x64.dll", "libssl-3-x64.dll", "liblzma.dll",
+                 "libbz2.dll", "ffi.dll", "libexpat.dll"):
+        assert (bundle / "_internal" / name).is_file(), f"Missing bundled DLL: {name}"
     env = os.environ.copy()
     # Ensure the test cannot accidentally use a developer's system FFmpeg.
     env["PATH"] = str(Path(os.environ["SystemRoot"]) / "System32")

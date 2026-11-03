@@ -73,10 +73,14 @@ def valid_segments(segments, duration=None) -> bool:
 
 
 def extract_clip(source: Path, target: Path, start: float, end: float) -> None:
+    duration = end - start
+    # 짧은 소리도 보존하되 API가 거부할 수 있는 초단기 파일은 무음으로 채웁니다.
+    # 먼저 잘라낸 뒤 패딩하므로 다음 발화가 입력에 섞이지 않습니다.
     result = subprocess.run([
         get_ffmpeg_executable(), "-hide_banner", "-loglevel", "error", "-nostdin",
-        "-n", "-ss", str(start), "-i", str(source), "-t", str(end - start),
+        "-n", "-ss", str(start), "-i", str(source), "-t", str(max(duration, 0.5)),
         "-map", "0:a:0", "-vn", "-ac", "1", "-ar", "16000", "-b:a", "64k",
+        "-af", f"atrim=duration={duration},apad=whole_dur=0.5",
         str(target),
     ], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120)
     if result.returncode:

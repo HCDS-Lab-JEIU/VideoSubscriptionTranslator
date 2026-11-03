@@ -65,6 +65,27 @@ class AudioActivityTests(unittest.TestCase):
         self.assertEqual(activity.sound_bounds(10, 22), (20, 22))
         self.assertIsNone(activity.sound_bounds(25, 30))
 
+    def test_short_clip_is_padded_without_including_next_sound(self):
+        import array
+        import subprocess
+        import tempfile
+        from ffmpeg_tools import get_ffmpeg_executable
+        from transcription_recovery import extract_clip
+        executable = get_ffmpeg_executable()
+        with tempfile.TemporaryDirectory() as folder:
+            source, clip = Path(folder) / "source.wav", Path(folder) / "clip.mp3"
+            subprocess.run([executable, "-hide_banner", "-loglevel", "error",
+                "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=16000:duration=1",
+                str(source)], check=True, capture_output=True, timeout=30)
+            extract_clip(source, clip, 0, 0.062)
+            decoded = subprocess.run([executable, "-hide_banner", "-loglevel", "error",
+                "-i", str(clip), "-f", "s16le", "-ac", "1", "-ar", "16000", "-"],
+                check=True, capture_output=True, timeout=30)
+        samples = array.array("h", decoded.stdout)
+        self.assertGreaterEqual(len(samples), 8000)
+        self.assertGreater(max(abs(s) for s in samples[:800]), 100)
+        self.assertLess(max(abs(s) for s in samples[3200:]), 10)
+
     def test_ffmpeg_scan_handles_trailing_silence(self):
         with patch("mutagen.mp3.MP3", return_value=SimpleNamespace(info=SimpleNamespace(length=30))), \
              patch("audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \

@@ -304,6 +304,34 @@ class TranscriptionTests(unittest.TestCase):
         self.assertFalse(list(self.output.glob("*.txt")))
         self.assertFalse(list(self.output.rglob("*.json")))
 
+    def test_short_audio_400_does_not_stop_later_utterances(self):
+        calls = []
+        def handler(request):
+            calls.append(request)
+            if len(calls) <= 2:
+                return httpx.Response(400, json={"error": {
+                    "code": "audio_too_short",
+                    "message": "Audio is too short. test-key-not-a-real-secret",
+                }})
+            return httpx.Response(200, json={"text": "후반부 실제 발화입니다."})
+        with self.client_patch(handler), patch("audio_transcriber.AudioActivity.analyze",
+                return_value=AudioActivity(10, [(0.062, 5)])):
+            result = self.transcriber.transcribe(MediaFile(self.mp3))
+        self.assertEqual(len(calls), 3)
+        self.assertIn("후반부 실제 발화입니다.", result.file_path.read_text(encoding="utf-8"))
+        records = list(self.output.rglob("*.json"))
+        self.assertTrue(any("audio_too_short" in p.read_text(encoding="utf-8") for p in records))
+        self.assertTrue(all("test-key-not-a-real-secret" not in p.read_text(encoding="utf-8") for p in records))
+
+    def test_unrelated_bad_request_still_stops_without_retry(self):
+        calls = []
+        def handler(request):
+            calls.append(request)
+            return httpx.Response(400, json={"error": {"message": "Invalid prompt"}})
+        with self.client_patch(handler), self.assertRaisesRegex(AudioTranscriptionError, "400"):
+            self.transcriber.transcribe(MediaFile(self.mp3))
+        self.assertEqual(len(calls), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
