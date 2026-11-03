@@ -23,7 +23,7 @@ def main() -> int:
     action.add_argument("--list-courses", action="store_true", help="텍스트북 과목 목록 출력 (API 호출 없음)")
     parser.add_argument("--course", help="과목 번호 또는 유일하게 일치하는 과목명 (예: 3, AI/ML)")
     parser.add_argument("--parallel-render", action="store_true",
-                        help="영상 자막 합성을 60초 구간으로 나눠 병렬 처리 (기본: 기존 순차 처리)")
+                        help="자막 개수로 연속 구간을 나눠 물리 코어 수까지 병렬 합성 (기본: 순차 처리)")
     parser.add_argument("--pipeline-output-dir", type=Path, default=project_dir / "output_runs",
                         help="전체 실행 결과 폴더의 상위 경로 (실행마다 새 하위 폴더 생성)")
     parser.add_argument("--subtitle-file", type=Path,

@@ -5,7 +5,8 @@ Video Subtitle Translator — Windows x64
 3. VideoSubtitleTranslator.exe를 실행하세요.
 4. 영상 선택 → 텍스트북 불러오기 → 과목 선택 → 파이프라인 실행.
 
-영상 자막 합성 구간별 병렬 처리 체크: 60초 구간을 최대 4개씩 동시 처리.
+영상 자막 합성 자막 기준 병렬 처리 체크: 전체 자막 개수를 연속 묶음으로 나누어
+물리 코어 수까지 동시 처리합니다. 자막 수가 적으면 작업 수도 줄어듭니다.
 해제하면 기존 방식으로 처리합니다. CLI에서는 --parallel-render를 사용하세요.
 
 기본 텍스트북은 secrets/textbook.txt입니다. Tools → 텍스트북 편집기에서

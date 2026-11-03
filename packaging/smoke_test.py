@@ -61,7 +61,8 @@ def check_bundle(bundle: Path) -> None:
         parallel_output = root / "병렬 자막.mp4"
         log = run(cli, unique_video, "--render", "--parallel-render", "--subtitle-file", transcript,
                   "--srt-output", srt, "--video-output", parallel_output)
-        assert "2개 구간" in log
+        assert "자막 기준" in log and "개 연속 구간" in log
+        assert "자막 1~" in log
         assert parallel_output.stat().st_size > 0
     run(bundle / "VideoSubtitleTranslator.exe", "--smoke-test")
     print("PASS: bundled CLI, textbook, FFmpeg serial/parallel render and GUI startup")

@@ -37,12 +37,12 @@ class VideoSubtitlerTests(unittest.TestCase):
             args += ["-f", "lavfi", "-i", f"sine=frequency=440:duration={duration}", "-c:a", "aac"]
         self.ff(*args, "-c:v", "libx264", "-pix_fmt", "yuv420p", self.video)
 
-    def render_pair(self, segment_seconds=2):
+    def render_pair(self):
         serial = self.root / "serial.mp4"
         parallel = self.root / "parallel.mp4"
         with contextlib.redirect_stdout(io.StringIO()):
             VideoSubtitler().render(self.video, self.srt, serial)
-            with patch("parallel_video_renderer.SEGMENT_SECONDS", segment_seconds):
+            with patch("parallel_video_renderer.physical_core_count", return_value=2):
                 VideoSubtitler().render(self.video, self.srt, parallel, parallel=True)
         return serial, parallel
 
@@ -72,9 +72,37 @@ class VideoSubtitlerTests(unittest.TestCase):
         self.assertEqual(self.video.read_bytes(), original)
         self.assertFalse(list(self.root.glob(".render-*")))
 
+    def test_overlapping_caption_survives_subtitle_group_boundary(self):
+        self.make_video(audio=False)
+        self.srt.write_text(
+            "1\n00:00:01,500 --> 00:00:04,800\nLong caption\n\n"
+            "2\n00:00:02,033 --> 00:00:03,200\nOverlapping caption\n\n", encoding="utf-8")
+        serial, parallel = self.render_pair()
+        first, second = self.frames(serial), self.frames(parallel)
+        size = 160 * 120
+        self.assertEqual(len(first), len(second))
+        for frame in (19, 21, 30, 35, 47, 50):
+            a, b = (frames[frame * size:(frame + 1) * size] for frames in (first, second))
+            self.assertLess(sum(abs(x - y) for x, y in zip(a, b)) / size, 1)
+
+    def test_six_physical_cores_render_six_subtitle_groups(self):
+        self.make_video(audio=False)
+        self.srt.write_text("\n\n".join(
+            f"{i + 1}\n00:00:0{i},033 --> 00:00:0{i},800\nCaption {i + 1}"
+            for i in range(6)), encoding="utf-8")
+        output = self.root / "parallel.mp4"
+        log = io.StringIO()
+        with patch("parallel_video_renderer.physical_core_count", return_value=6), \
+             contextlib.redirect_stdout(log):
+            VideoSubtitler().render(self.video, self.srt, output, parallel=True)
+        self.assertIn("자막 기준 6개 연속 구간", log.getvalue())
+        self.assertIn("자막 6~6", log.getvalue())
+        self.assertEqual(len(self.frames(output)), 60 * 160 * 120)
+
     def test_fractional_frame_rate_and_cuts_without_audio(self):
         self.make_video(audio=False, rate="30000/1001", duration="6.2")
-        serial, parallel = self.render_pair(segment_seconds=2.03)
+        self.srt.write_text(self.srt.read_text(encoding="utf-8").replace("04,300", "04,333"), encoding="utf-8")
+        serial, parallel = self.render_pair()
         self.assertEqual(len(self.frames(serial)), len(self.frames(parallel)))
         for point in ("1.8", "2.2", "3.5", "4.5", "5.6"):
             a = self.ff("-ss", point, "-i", serial, "-frames:v", "1", "-pix_fmt", "gray", "-f", "rawvideo", "-")
@@ -87,7 +115,7 @@ class VideoSubtitlerTests(unittest.TestCase):
                 "-vf", "select='if(lt(t,3),1,not(mod(n,2)))'", "-fps_mode", "vfr",
                 "-c:v", "libx264", self.video)
         parallel = self.root / "parallel.mp4"
-        with patch("parallel_video_renderer.SEGMENT_SECONDS", 2.03), \
+        with patch("parallel_video_renderer.physical_core_count", return_value=2), \
              contextlib.redirect_stdout(io.StringIO()):
             VideoSubtitler().render(self.video, self.srt, parallel, parallel=True)
 
@@ -107,14 +135,14 @@ class VideoSubtitlerTests(unittest.TestCase):
         self.ff("-f", "lavfi", "-i", "color=black:s=160x120:r=10:d=2",
                 "-f", "lavfi", "-i", "sine=frequency=440:duration=4.1",
                 "-c:v", "libx264", "-c:a", "aac", self.video)
-        serial, parallel = self.render_pair(segment_seconds=2)
+        serial, parallel = self.render_pair()
         self.assertEqual(len(self.frames(serial)), len(self.frames(parallel)))
 
     def test_parallel_failure_leaves_no_output_and_cleans_temporary_files(self):
         self.make_video()
         output = self.root / "result.mp4"
         self.srt.write_text("invalid subtitle", encoding="utf-8")
-        with patch("parallel_video_renderer.SEGMENT_SECONDS", 2), \
+        with patch("parallel_video_renderer.physical_core_count", return_value=2), \
              contextlib.redirect_stdout(io.StringIO()), self.assertRaises(VideoSubtitleError):
             VideoSubtitler().render(self.video, self.srt, output, parallel=True)
         self.assertFalse(output.exists())

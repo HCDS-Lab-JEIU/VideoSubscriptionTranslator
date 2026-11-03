@@ -63,9 +63,9 @@ class PipelinePanel(QWidget):
         output_button = QPushButton("저장 위치 선택")
         output_button.clicked.connect(self.choose_output)
         form.addRow("결과 저장 위치", self._row(self.output_field, output_button))
-        self.parallel_render_checkbox = QCheckBox("영상 자막 합성 구간별 병렬 처리")
+        self.parallel_render_checkbox = QCheckBox("영상 자막 합성 자막 기준 병렬 처리")
         self.parallel_render_checkbox.setToolTip(
-            "체크하면 60초 구간을 최대 4개씩 동시 처리합니다. "
+            "체크하면 전체 자막을 물리 코어 수에 맞춰 연속 묶음으로 나눠 동시 처리합니다. "
             "CPU·메모리·임시 디스크 사용량이 증가하며, 해제하면 기존 방식으로 처리합니다."
         )
         form.addRow("렌더링", self.parallel_render_checkbox)
