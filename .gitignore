@@ -13,8 +13,7 @@ packaging/dist/
 packaging/*.zip
 packaging/SHA256SUMS.txt
 
-# Experiments are tracked only on the experimental branch.
-/experimentals/
+# This branch tracks experimentals/. The main branch ignores that directory.
 
 # API keys and local credentials (including copies outside secrets/)
 secrets/
