@@ -11,8 +11,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtCore import QEventLoop, QProcess, QTimer
 from PyQt6.QtWidgets import QApplication
-from qtTest.pipeline_panel import PipelinePanel
-from pipeline_events import SUBTITLE_READY_PREFIX
+from subtitle_app.ui.pipeline_panel import PipelinePanel
+from subtitle_app.pipeline.events import SUBTITLE_READY_PREFIX
 
 
 BOOK = ("[Translation Rules]\nTranslate to English.\n[Course]\nAI/ML Applications\n"
@@ -131,7 +131,7 @@ class PipelinePanelTests(unittest.TestCase):
         self.panel.course_combo.setCurrentIndex(1)
         self.panel._codex_models = {}
         self.panel.codex_model_combo.clear()
-        with patch("qtTest.pipeline_panel.QThreadPool.globalInstance"):
+        with patch("subtitle_app.ui.pipeline_panel.QThreadPool.globalInstance"):
             self.panel.translation_backend_combo.setCurrentIndex(1)
         self.assertTrue(self.panel._models_loading)
         self.assertFalse(self.panel.run_button.isEnabled())

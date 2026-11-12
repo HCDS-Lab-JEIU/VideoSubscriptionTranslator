@@ -3,7 +3,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from audio_activity import AudioActivity
+from subtitle_app.media.audio_activity import AudioActivity
 
 
 class AudioActivityTests(unittest.TestCase):
@@ -34,8 +34,8 @@ class AudioActivityTests(unittest.TestCase):
                "[silencedetect@quiet @ x] silence_end: 1 | silence_duration: 1\n"
                "[silencedetect@pause @ y] silence_end: 2 | silence_duration: 2\n")
         with patch("mutagen.mp3.MP3", return_value=SimpleNamespace(info=SimpleNamespace(length=5))), \
-             patch("audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
-             patch("audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0, stderr=log)):
+             patch("subtitle_app.media.audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
+             patch("subtitle_app.media.audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0, stderr=log)):
             activity = AudioActivity.analyze(Path("fake.mp3"))
         self.assertEqual(activity.silence, [(0, 1)])
         self.assertEqual(activity.pauses, [(0, 2)])
@@ -43,7 +43,7 @@ class AudioActivityTests(unittest.TestCase):
     def test_real_ffmpeg_boundaries(self):
         import subprocess
         import tempfile
-        from ffmpeg_tools import get_ffmpeg_executable
+        from subtitle_app.media.ffmpeg_tools import get_ffmpeg_executable
         with tempfile.TemporaryDirectory() as folder:
             source = Path(folder) / "bursts.mp3"
             subprocess.run([get_ffmpeg_executable(), "-hide_banner", "-loglevel", "error",
@@ -69,8 +69,8 @@ class AudioActivityTests(unittest.TestCase):
         import array
         import subprocess
         import tempfile
-        from ffmpeg_tools import get_ffmpeg_executable
-        from transcription_recovery import extract_clip
+        from subtitle_app.media.ffmpeg_tools import get_ffmpeg_executable
+        from subtitle_app.transcription.transcription_recovery import extract_clip
         executable = get_ffmpeg_executable()
         with tempfile.TemporaryDirectory() as folder:
             source, clip = Path(folder) / "source.wav", Path(folder) / "clip.mp3"
@@ -88,23 +88,23 @@ class AudioActivityTests(unittest.TestCase):
 
     def test_ffmpeg_scan_handles_trailing_silence(self):
         with patch("mutagen.mp3.MP3", return_value=SimpleNamespace(info=SimpleNamespace(length=30))), \
-             patch("audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
-             patch("audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0,
+             patch("subtitle_app.media.audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
+             patch("subtitle_app.media.audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0,
                  stderr="silence_start: 0\nsilence_end: 10 | silence_duration: 10\nsilence_start: 20\n")):
             activity = AudioActivity.analyze(Path("fake.mp3"))
         self.assertEqual(activity.silence, [(0, 10), (20, 30)])
 
     def test_failed_scan_does_not_guess_silence(self):
         with patch("mutagen.mp3.MP3", return_value=SimpleNamespace(info=SimpleNamespace(length=30))), \
-             patch("audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
-             patch("audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=1)):
+             patch("subtitle_app.media.audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
+             patch("subtitle_app.media.audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=1)):
             with self.assertRaises(RuntimeError):
                 AudioActivity.analyze(Path("fake.mp3"))
 
     def test_mp3_padding_is_not_mistaken_for_sound(self):
         with patch("mutagen.mp3.MP3", return_value=SimpleNamespace(info=SimpleNamespace(length=3167.1))), \
-             patch("audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
-             patch("audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0,
+             patch("subtitle_app.media.audio_activity.get_ffmpeg_executable", return_value="ffmpeg"), \
+             patch("subtitle_app.media.audio_activity.subprocess.run", return_value=SimpleNamespace(returncode=0,
                  stderr="silence_start: 0\ntime=00:52:47.01\nsilence_end: 3167.016062\n")):
             activity = AudioActivity.analyze(Path("fake.mp3"))
         self.assertFalse(activity.has_sound(0, activity.duration))

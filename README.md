@@ -1,105 +1,72 @@
 # Video Subtitle Translator
 
-현재 배포 버전: **v2026.11.12** · [Windows 패키지 다운로드](https://github.com/HCDS-Lab-JEIU/VideoSubscriptionTranslator/releases/tag/v2026.11.12)
+한국어 영상의 음성을 받아쓰고 영어로 번역해 **SRT 자막 파일과 자막이 들어간 MP4 영상**을 만드는 Windows 앱입니다.
 
-한국어 강의 영상에서 음성을 받아쓰고 영어로 번역해 **SRT 자막과 자막이 합성된 MP4**를 만드는 Windows 데스크톱 앱입니다. 강의별 용어장을 적용하고, 영상 재생과 텍스트북 편집을 지원합니다.
+**[Windows 앱 다운로드 · v2026.11.12](https://github.com/HCDS-Lab-JEIU/VideoSubscriptionTranslator/releases/tag/v2026.11.12)** · **[그림으로 보는 사용법](docs/user-guide/README.md)**
 
-붉은 박스와 화살표로 기능을 설명한 [화면별 사용법 안내](docs/user-guide/README.md)를 GitHub에서 바로 읽을 수 있습니다. 오프라인에서는 [전체 이미지·안내 ZIP](docs/user-guide.zip)을 내려받아 압축을 풀고 `index.html`을 여세요.
+## 1. 다운로드하고 실행하기
 
-## Windows 앱 사용
+1. 다운로드 페이지의 **Assets**에서 `VideoSubtitleTranslator-v2026.11.12-windows-x64.zip`을 받습니다. `Source code`는 실행용 앱이 아닙니다.
+2. ZIP **전체를 압축 해제**합니다. 예를 들어 `D:\VideoSubtitleTranslator`처럼 파일을 저장할 수 있는 폴더를 사용하세요.
+3. 압축을 푼 폴더에서 `VideoSubtitleTranslator.exe`를 실행합니다. `_internal` 등 함께 들어 있는 폴더도 필요하므로 EXE만 따로 옮기지 마세요.
+4. 아래에서 사용할 전사·번역 방식을 준비한 뒤 첫 영상을 선택합니다.
 
-빌드된 ZIP 전체를 압축 해제하고 `VideoSubtitleTranslator.exe`를 실행합니다.
+Windows 64비트용 패키지에는 Python과 FFmpeg가 포함되어 있어 별도로 설치할 필요가 없습니다. 이전 버전에서 옮겨 온다면 새 폴더에 풀고 기존 텍스트북과 결과 파일을 보관하세요.
 
-1. API 전사 또는 API 번역을 사용할 경우 `secrets/openai_api_key.txt`에 OpenAI API 키를 한 줄로 저장합니다.
-2. **영상 선택 → 텍스트북 불러오기 → 과목 선택 → 전사·번역 방식 선택 → 파이프라인 실행** 순서로 진행합니다.
-3. **결과 폴더 열기**에서 SRT와 MP4를 확인합니다. 기본 저장 위치는 `output_runs/`입니다.
+<details>
+<summary>소스 코드로 UI 앱을 실행하려면</summary>
 
-화면 왼쪽 위에는 영상과 재생 컨트롤, 왼쪽 아래에는 진행 상태와 콘솔, 오른쪽에는 설정 인스펙터가 있습니다. 영역 사이 경계선을 드래그해 크기를 조절할 수 있습니다. 설정은 오른쪽에서 스크롤하며, 실행 버튼과 결과 폴더 버튼은 인스펙터 하단에 표시됩니다.
-
-번역 후 **SRT 생성**이 완료되면 위쪽 원본 영상에 미리보기 자막이 자동으로 표시됩니다. MP4 인코딩 중에도 재생·일시정지와 파형을 통한 구간 이동이 가능하며, **미리보기 자막** 체크박스로 표시를 켜고 끕니다. 자막을 불러올 때 현재 재생 위치는 유지합니다. 새 영상 선택 또는 새 파이프라인 실행 시 이전 자막을 지웁니다. 미리보기는 SRT를 화면에 겹쳐 표시하는 방식이므로 최종 MP4의 글꼴·줄바꿈과 외형은 다를 수 있습니다. 최종 MP4에는 기존처럼 자막을 영상에 합성합니다.
-
-**영상 자막 합성 자막 기준 병렬 처리**를 체크하면 전체 자막 개수를 물리 코어 수에 맞춰 균등한 연속 묶음으로 나누어 동시 처리합니다. 예를 들어 자막 100개와 물리 코어 8개라면 자막 1~13, 14~26, …, 89~100을 각각 맡습니다. 각 영상 구간은 다음 묶음의 첫 자막 시작 시간까지이며, 자막 전후의 영상과 음성도 보존합니다. 동시 작업 수는 자막 수와 물리 코어 수 중 작은 값이며, 시작 시간이 같은 자막 등으로 구간을 나눌 수 없으면 더 적어질 수 있습니다. 물리 코어 수를 확인할 수 없으면 1개로 처리합니다. 기본값은 해제이며, CLI에서는 `--parallel-render`로 켭니다. CPU·메모리와 임시 디스크 사용량이 증가하며 처리 속도는 환경에 따라 달라집니다.
-
-기본 텍스트북은 `secrets/textbook.txt`이며, **Tools → 텍스트북 편집기**에서 강의 용어와 규칙을 수정할 수 있습니다. 기본 전사·번역 방식은 기존 **OpenAI API**입니다. **로컬 Whisper**를 선택하면 음성을 서버에 업로드하지 않고 PC에서 전사합니다. 영어 번역은 **OpenAI API / Codex CLI** 중 선택하며 둘 다 인터넷 연결이 필요합니다. **로컬 Whisper + Codex CLI** 조합에는 이 앱의 API 키 파일이 필요 없습니다. 원본 영상은 보존됩니다.
-
-## 소스에서 실행
-
-### PPT에서 단어장 자동 생성 (Auto)
-
-**Tools → 텍스트북 편집기 → Auto**에서 여러 `.pptx` / `.ppt` 파일을 드래그하거나 **Open · PPT 파일 추가**로 선택합니다. 한 번에 선택한 PPT들을 하나의 과목 단어장으로 모읍니다. 기존 과목을 선택하거나 새 과목명을 입력하세요.
-
-생성 방식은 **OpenAI API (gpt-4.1)**와 **Codex CLI** 중 선택합니다. Codex는 로그인 계정에서 사용 가능한 모델과 추론 수준을 콤보박스로 선택하며, API 키 파일이 필요 없습니다. PPT에서 추출한 텍스트와 현재 편집 중인 텍스트북 규칙·선택 과목의 기존 단어를 해당 서비스에 전송합니다. API 요금 또는 Codex 계정의 사용 한도가 적용됩니다.
-
-**단어장 생성 → 후보 검토·수정 → 선택 단어를 편집기에 추가 → Save** 순서로 사용합니다. 결과에는 출처 파일·슬라이드 번호가 표시됩니다. 기존 단어 및 충돌 후보는 기본 선택에서 제외하고 기존 번역을 덮어쓰지 않습니다. 기존 규칙과 다른 과목은 유지하며, 편집기에 추가하기 전까지 문서를 변경하지 않습니다. 저장 형식은 기존 `[Course]` / `[Terminology]`의 `한국어 용어 = English term` 형식입니다.
-
-PPTX는 별도 Office 설치 없이 슬라이드 텍스트와 표를 읽습니다. 구형 PPT는 **Windows에 설치된 PowerPoint**로 읽기 전용 임시 변환합니다. 원본은 수정하지 않습니다. 이미지 속 글자(OCR), 발표자 노트, 이미지 기반 도표는 추출하지 않습니다. 텍스트 없는 슬라이드는 로그에 표시하며, 긴 자료는 여러 요청으로 나누어 처리합니다. 생성 취소는 현재 파일 처리·요청 종료 후 적용되고, 실패·취소 시 결과를 편집기에 자동 반영하지 않습니다.
-
-API는 [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)를 사용하고, 두 방식 모두 결과를 앱의 텍스트북 형식으로 검증합니다. 생성된 용어는 저장 전에 검토하세요.
-
-### 실행 요구사항
-
-Windows와 **Python 3.10 이상**이 필요합니다. 아래는 [requirements.txt](requirements.txt)에 정의된 직접 의존성입니다. 설치 시 각 패키지가 필요로 하는 하위 의존성도 함께 설치됩니다.
-
-| 패키지 | 버전 범위 | 용도 |
-| --- | --- | --- |
-| `imageio-ffmpeg` | `>=0.6.0,<0.7` | 시스템 FFmpeg가 없을 때 사용할 실행 파일 제공 |
-| `mutagen` | `>=1.47,<2` | MP3 길이·비트레이트 등 오디오 정보 읽기 |
-| `openai` | `>=2,<4` | 음성 전사·자막 번역 API 호출 |
-| `PyQt6` | `>=6.7,<7` | 데스크톱 UI, 영상 재생과 텍스트북 편집 |
-
-영상·오디오 처리에는 **FFmpeg**가 필요합니다. PATH에 설치된 FFmpeg를 먼저 사용하며, 없으면 `imageio-ffmpeg`가 제공하는 실행 파일을 사용합니다. 자막 합성에는 `subtitles` 필터(libass 지원)가 포함된 FFmpeg가 필요합니다. OpenAI API 방식의 전사 또는 번역을 선택한 경우 API 키가 필요합니다.
-
-### 로컬 Whisper (RTX 2070 SUPER 8GB)
-
-`whisper-1`은 OpenAI API의 모델 이름이며 공개 Whisper V2를 기반으로 합니다([OpenAI 문서](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create)). 이 앱의 로컬 기본값은 **faster-whisper / large-v2 / INT8**입니다. API 서비스와 로컬 실행은 디코딩·전처리가 달라 결과가 완전히 같지는 않습니다.
-
-GPU에서는 `int8_float16`, CPU에서는 `int8`로 실행합니다. 배치 처리 없이 30초 창을 순차 처리하고, 모델 작업자 1개와 beam size 1을 사용합니다. [faster-whisper 공식 벤치마크](https://github.com/SYSTRAN/faster-whisper#benchmark)의 large-v2 INT8는 RTX 3070 Ti에서 VRAM 2,926MB였습니다. **3–4GB는 목표치이며 하드 제한이나 OOM 방지 보장은 아닙니다.** GPU 0의 여유 VRAM이 4GiB 미만이거나 조회할 수 없으면 CPU를 사용합니다. 로딩 또는 전사 도중 CUDA/OOM 오류가 발생해도 GPU를 해제하고 CPU에서 한 번 재시도합니다. CPU 재시도는 처음부터 진행하며 API로 전환하지 않습니다. 다른 앱의 GPU 사용량은 실행 도중에도 바뀔 수 있습니다.
-
-이 PC의 RTX 2070 SUPER 8GB에서 한국어 강의 60초를 오프라인으로 전사한 초기 확인 결과는 약 10.6초, GPU 전체 사용량 증가분 최대 2,337MiB였습니다(faster-whisper 1.2.1, CTranslate2 4.9.0). `nvidia-smi`를 0.5초마다 조회한 값으로 다른 앱의 영향과 샘플 사이의 순간 피크는 포함하지 못하므로 전용 메모리 측정이나 장시간 최대치 보장은 아닙니다. 처리 종료 후 GPU 메모리 해제도 확인했습니다.
-
-현재 프로젝트의 `translator` 환경에 선택 의존성을 설치합니다. 기존 API 방식만 쓴다면 추가 설치는 필요 없습니다.
+프로젝트와 `translator` 환경이 이미 준비된 이 PC에서는 PowerShell에 다음을 입력합니다.
 
 ```powershell
-# 로컬 CPU 전사
-& 'D:\Miniconda3\envs\translator\python.exe' -m pip install -r requirements-local.txt
-# NVIDIA GPU 전사: 위 패키지 + 공식 CUDA 12 cuBLAS / cuDNN 9 런타임
-& 'D:\Miniconda3\envs\translator\python.exe' -m pip install -r requirements-local-gpu.txt
+cd D:\VideoSubsribProject
+& 'D:\Miniconda3\envs\translator\python.exe' -m subtitle_app.ui.app
 ```
 
-Windows NVIDIA pip 패키지의 DLL 경로는 앱이 자동 등록합니다. 시스템 CUDA를 사용한다면 CUDA 12 cuBLAS와 cuDNN 9가 PATH에서 검색되어야 합니다. NVIDIA 드라이버는 별도 설치가 필요합니다. GPU 실행에 PyTorch는 사용하지 않습니다.
+처음 소스로 실행한다면 [환경 준비부터 설명한 소스 실행 안내](docs/source-setup.md)를 따라 하세요. 프로젝트와 Miniconda의 위치가 다르면 경로를 맞춰야 합니다.
 
-UI에서 **전사 방식 → 로컬 Whisper**를 선택한 뒤 `large-v2`, `medium`, `small`과 실행 장치를 선택합니다. `medium`/`small`은 메모리를 더 절약하지만 한국어·전문 용어 정확도는 별도 비교가 필요합니다. 첫 실행에는 공개 가중치를 Hugging Face에서 `models/whisper/`로 다운로드하므로 인터넷과 디스크 공간이 필요합니다(large-v2 다운로드 약 3GB). 이후 캐시를 재사용합니다. 전사 시 텍스트북의 과목·용어 힌트를 적용하고 VAD로 무음을 제외하며 TXT와 타임스탬프 JSON을 저장합니다. JSON에는 사용 모델·장치·완료 여부와 중간 결과가 기록됩니다. 기존 API 구간 복구는 API 방식에서 유지되며 로컬 JSON에는 적용되지 않습니다.
+</details>
 
-```powershell
-# API 키 없이 한국어 전사만 실행
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\videos\lecture.mp3' --transcribe --transcription-backend local --course '회로' --transcript-output-dir output_txts/local
-# 로컬 전사 → 기존 API 영어 번역 → 자막 영상
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\videos\lecture.mp4' --pipeline --transcription-backend local --course '회로'
-```
+## 2. 전사·번역 방식 준비하기
 
-`--local-model medium`으로 모델을 변경하거나 `--local-device cpu`로 CPU만 사용할 수 있습니다. `--transcription-response`는 기존 API 방식에서만 지원합니다. **v2026.11.12 Windows 패키지에는 로컬 전사 라이브러리와 CUDA DLL이 포함**됩니다. 모델 가중치는 첫 실행 시 다운로드하며, NVIDIA 드라이버는 별도로 설치되어 있어야 합니다. 이전 EXE는 새 ZIP 전체로 교체하세요.
+**전사**는 한국어 음성을 글로 옮기는 단계이고, **번역**은 그 글을 영어로 옮기는 단계입니다. 오른쪽 설정창에서 각각 선택합니다.
 
-### Codex로 영어 자막 번역
+| 사용할 방식 | 전사 방식 | 번역 방식 | 준비할 것 |
+| --- | --- | --- | --- |
+| OpenAI API로 처리 | OpenAI API | OpenAI API | API 키 파일 |
+| 음성은 내 PC에서 처리 | 로컬 Whisper | OpenAI API | 첫 모델 다운로드 + API 키 파일 |
+| Codex 로그인 계정으로 번역 | 로컬 Whisper | Codex CLI | 첫 모델 다운로드 + Codex 설치·로그인 |
 
-UI의 **번역 방식 → Codex CLI (로그인 계정 사용)**를 선택하면 **Codex 모델 / 추론 수준** 콤보박스에 실제 목록을 불러옵니다. 공식 [app-server의 `model/list`](https://learn.chatgpt.com/docs/app-server#models) 응답을 사용하며, 선택한 모델에서 지원하는 추론 수준만 표시합니다. **목록 새로고침**으로 갱신할 수 있습니다. 목록 조회는 백그라운드에서 진행하며, 최초 조회에 실패하면 번역 실행을 막고 재시도 안내를 표시합니다. 새로고침에서는 여전히 지원되는 기존 선택을 유지합니다.
+API 사용에는 API 요금이, Codex 사용에는 로그인 계정의 사용 한도가 적용됩니다. 로컬 전사는 음성을 업로드하지 않으며, 번역할 텍스트와 용어장은 선택한 번역 서비스에 전송합니다. 번역에는 인터넷 연결이 필요합니다.
 
-이전 UI의 `default`는 모델 ID를 전달하지 않아 CLI 자체 기본값에 맡긴다는 뜻이었으며, VS Code에서 고른 모델과 연동되지 않았습니다. 이제 모델 ID와 추론 수준을 항상 명시적으로 전달하고 화면의 **실행 설정**과 로그에 기록합니다. 최초 조회 시 Codex가 기본으로 표시한 모델과 해당 모델의 기본 추론 수준을 선택합니다. 이 PC에서 확인한 값은 `gpt-6.1-sol` / `low`이며 계정·CLI 업데이트에 따라 달라질 수 있습니다. `low`는 가벼운 추론, `medium`은 균형, `high` 이상은 더 깊은 추론을 뜻합니다. 높은 수준은 응답 시간과 사용량이 늘어날 수 있습니다.
+<details>
+<summary>OpenAI API 키 설정하기</summary>
 
-이 PC에서는 설치된 Codex CLI의 ChatGPT 로그인을 확인했고 예문 두 줄의 실제 번역을 검증했습니다. 별도 API 키 파일은 사용하지 않으며, 로그인 계정의 사용 한도·과금 조건을 따릅니다. 무제한 무료 번역이나 오프라인 번역은 아닙니다. Codex에 자막 텍스트, 주변 문맥, 선택한 과목의 번역 규칙과 용어장을 전송합니다.
+1. [OpenAI API 키 페이지](https://platform.openai.com/api-keys)에서 API 키를 준비합니다. API 사용을 위한 결제·사용 가능 상태도 확인하세요.
+2. 메모장을 열어 **키만 한 줄로** 붙여 넣습니다.
+3. 앱 폴더의 `secrets` 폴더에 `openai_api_key.txt`라는 이름으로 저장합니다. 메모장의 파일 형식은 **모든 파일**, 인코딩은 **UTF-8**로 선택하면 `.txt`가 중복으로 붙는 것을 피할 수 있습니다.
+4. 앱 오른쪽 **키 파일 선택**에서 저장한 파일을 선택합니다. 다른 위치에 저장한 TXT도 선택할 수 있습니다.
 
-이 기능은 공식 [`codex exec` 비대화형 실행](https://learn.chatgpt.com/docs/non-interactive-mode)을 사용합니다. 예전 `codex mcp-server`는 [현재 CLI에서 제거](https://learn.chatgpt.com/docs/developer-commands)되어 MCP 서버를 별도로 띄우지 않습니다. 최신 Codex CLI를 설치하고 같은 Windows 계정에서 `codex login`으로 로그인하세요. PATH의 실행 파일 또는 VS Code Codex 확장에 포함된 실행 파일을 자동 검색합니다. 필요하면 CLI의 `--codex-executable`로 경로를 지정할 수 있습니다. `--ignore-user-config`와 `--ephemeral`을 지원하는 버전이 필요합니다(확인한 버전: 0.162.0-alpha.17.2).
+**로컬 Whisper + Codex CLI**만 사용한다면 이 키 파일은 필요 없습니다. Auto 단어장 생성에서 OpenAI API를 선택할 때도 같은 키 파일을 사용합니다.
 
-#### Codex CLI 설치 및 로그인 (Windows)
+</details>
 
-Codex CLI는 이 앱의 ZIP에 포함하지 않으므로 **Codex 번역 또는 Auto 생성 기능을 사용하는 PC마다 설치·로그인**합니다. Windows 앱과 같은 Windows 사용자 계정의 PowerShell에서 아래 순서로 실행하세요. WSL 안에만 설치하면 Windows EXE에서 자동 검색하지 못합니다.
+### Codex CLI 설치 및 로그인 (Windows)
 
-1. Node.js LTS와 npm이 없다면 설치합니다. 설치 후 PowerShell을 새로 엽니다. 이미 설치했다면 `node --version`, `npm.cmd --version`으로 확인하고 다음 단계로 진행합니다.
+Codex를 선택한 경우에만 아래 설치 안내를 펼쳐 진행하세요. Codex CLI는 앱 ZIP에 포함되어 있지 않습니다.
+
+<details>
+<summary>Codex 설치 → 로그인 → 앱에서 모델 선택하기</summary>
+
+앱을 실행하는 **같은 Windows 사용자 계정**의 PowerShell에서 진행합니다.
+
+1. Node.js와 npm이 없다면 아래 명령으로 설치합니다. 설치가 끝나면 **PowerShell을 닫고 새로 엽니다**. 이미 있다면 `node --version`, `npm.cmd --version`으로 확인하고 2번으로 넘어갑니다.
 
    ```powershell
    winget install --id OpenJS.NodeJS.LTS -e
    ```
 
-2. Codex CLI를 설치하거나 최신 버전으로 업데이트합니다. `.cmd`를 명시하면 PowerShell의 `.ps1` 실행 정책에 영향을 받지 않습니다.
+2. Codex를 설치하고 로그인합니다. `login` 실행 후 열리는 브라우저에서 사용할 ChatGPT 계정으로 로그인하세요.
 
    ```powershell
    npm.cmd install -g @openai/codex@latest
@@ -108,81 +75,101 @@ Codex CLI는 이 앱의 ZIP에 포함하지 않으므로 **Codex 번역 또는 A
    codex.cmd login status
    ```
 
-3. 브라우저에서 사용할 ChatGPT 계정으로 로그인합니다. `login status`에서 로그인 상태를 확인한 뒤 이 앱을 다시 실행합니다. **Codex CLI → 목록 새로고침 → 모델·추론 수준 선택** 순서로 설정하면 됩니다. 텍스트북 편집기의 Auto 창에서도 같은 로그인을 사용합니다.
+3. 로그인 상태를 확인한 뒤 이 앱을 다시 실행합니다.
+4. **번역 방식 → Codex CLI → 목록 새로고침**을 누릅니다. 나타나는 **모델과 추론 수준**을 확인합니다. 처음에는 자동 선택된 값을 사용할 수 있습니다.
 
-4. 앱에서 CLI를 찾지 못하면 `Get-Command codex.cmd`로 설치 경로를 확인하고 앱과 터미널을 완전히 종료한 뒤 다시 엽니다. 필요한 옵션을 지원하지 않는다는 오류가 나면 위 npm 설치 명령으로 업데이트하고 `codex.cmd exec --help`에서 `--ignore-user-config`, `--ephemeral` 지원 여부를 확인하세요. VS Code Codex 확장에 포함된 CLI도 자동 검색합니다.
+VS Code에서 선택한 모델과는 별도로 설정합니다. 추론 수준은 모델이 답변을 만들 때 추론하는 정도이며, 높은 수준은 처리 시간과 사용량이 늘어날 수 있습니다. 텍스트북 Auto 창에서도 같은 로그인을 사용합니다.
 
-Node.js/npm은 위 설치 방법을 위한 도구이며, 이 앱 자체는 패키지에 포함된 Python으로 실행합니다. Codex 계정 인증은 사용자의 PC에 보관되며 배포 ZIP이나 Git에 포함하지 않습니다. 공식 안내: [Windows 설치](https://learn.chatgpt.com/docs/enterprise/windows-deployment#deploy-codex-cli-on-windows), [로그인](https://learn.chatgpt.com/docs/auth).
+WSL 안에만 설치하면 Windows 앱에서 찾지 못합니다. 설치 명령이 인식되지 않거나 모델 목록이 비어 있으면 아래 **문제 해결**을 확인하세요. 공식 안내: [Windows 설치](https://learn.chatgpt.com/docs/enterprise/windows-deployment#deploy-codex-cli-on-windows), [로그인](https://learn.chatgpt.com/docs/auth).
 
-```powershell
-# 기존 한국어 자막만 Codex로 번역
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\subtitles\lecture_kr.txt' --translate --translation-backend codex --course '회로'
-# 모델과 추론 수준을 직접 지정 (계정에서 지원하는 조합 사용)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\subtitles\lecture_kr.txt' --translate --translation-backend codex --codex-model gpt-6.1-sol --codex-reasoning low --course '회로'
-# API 키 파일 없이 전체 실행: 로컬 전사 + Codex 번역
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\videos\lecture.mp4' --pipeline --transcription-backend local --translation-backend codex --course '회로'
-```
+</details>
 
-번역은 50구간씩 요청하고 원본 타임스탬프를 그대로 보존합니다. 빈 번역은 해당 구간만 재요청하며, 정상 번역은 `.translation.json`에 저장합니다. 중단되면 생성된 한국어 TXT에 `--translate --translation-backend codex`를 같은 출력 경로로 다시 실행해 이어갈 수 있습니다. 전체 파이프라인 재실행은 기존 동작대로 새 결과 폴더를 만듭니다. API 방식과 Codex 방식의 체크포인트는 서로 섞어 사용하지 않습니다. Codex 오류나 사용 한도 도달 시 OpenAI API로 자동 전환하지 않습니다.
+<details>
+<summary>로컬 Whisper 모델 설정과 첫 다운로드</summary>
 
-각 번역 요청은 임시 작업 폴더에서 읽기 전용 샌드박스·셸 실행 비활성화·웹 검색 비활성화로 실행합니다. 번역 실행은 사용자 `config.toml`을 읽지 않으며 CLI에 저장된 인증을 재사용합니다. 모델 목록 조회는 설치된 app-server의 설정과 계정을 사용합니다. CLI에서 `--codex-model` 또는 `--codex-reasoning`을 생략하면 모델 목록에서 해당 기본값을 확인한 뒤 명시적으로 전달합니다. 모델·추론 수준이 달라지면 기존 체크포인트를 섞어 사용하지 않으므로 새 출력 경로를 지정해야 합니다. 원문은 명령줄 인수가 아닌 표준 입력으로 전달하며, 앱 로그에는 원문이 포함될 수 있는 CLI 진단 출력을 노출하지 않습니다.
+- **전사 방식 → 로컬 Whisper**를 선택합니다. 처음에는 모델 `large-v2`, 실행 장치 **GPU 우선 / 부족·오류 시 CPU**를 사용할 수 있습니다.
+- 첫 전사 실행 때 모델을 자동 다운로드합니다. 인터넷 연결과 모델 저장 공간이 필요하며, `large-v2` 다운로드는 약 3GB입니다. 이후에는 저장된 모델을 재사용합니다.
+- NVIDIA GPU를 사용하려면 드라이버가 설치되어 있어야 합니다. GPU를 사용할 수 없거나 메모리가 부족하면 CPU로 재시도하며, 이 경우 느려질 수 있습니다.
+- 메모리를 더 절약하려면 `medium` 또는 `small`을 선택할 수 있습니다. 모델에 따라 전사 정확도가 달라집니다.
+- 모델은 앱 폴더의 `models/whisper/`에 저장됩니다. 다운로드 도중에는 진행 콘솔을 확인하세요.
 
-### 환경 생성과 패키지 설치
+</details>
 
-Miniconda를 설치했다면 Conda를 사용할 수 있는 PowerShell에서 프로젝트 루트로 이동한 뒤 아래 명령을 실행합니다. `translator`는 예시 환경 이름이며, Miniconda 설치 드라이브나 경로가 같을 필요는 없습니다. 이미 Python 3.10 이상의 환경이 있다면 해당 환경의 Python으로 `-m pip install -r requirements.txt`를 실행해도 됩니다.
+## 3. 첫 영상에 자막 만들기
 
-```powershell
-conda create -n translator python=3.11 pip -y
-conda run --no-capture-output -n translator python -m pip install -r requirements.txt
-```
+1. 오른쪽 **영상 선택**을 눌러 한국어 영상 파일을 엽니다. 처음에는 짧은 영상으로 확인하세요.
+2. **텍스트북 불러오기**에서 앱 폴더의 `secrets/textbook.txt`를 선택합니다. 텍스트북은 강의별 용어와 번역 규칙을 담은 파일입니다. 패키지에 포함된 예제로 동작을 확인할 수 있습니다.
+3. **과목**을 선택합니다. 실제 강의에 사용할 때는 **Tools → 텍스트북 편집기**에서 해당 과목과 용어를 작성하고 **Save**한 뒤 다시 불러오세요.
+4. **전사 방식·번역 방식**을 선택합니다. API를 선택했다면 키 파일을, Codex를 선택했다면 모델과 추론 수준을 확인합니다.
+5. **저장 위치 선택**에서 결과 폴더를 지정합니다. 처음에는 기본 위치를 사용하고, 병렬 처리 옵션은 해제된 상태로 두어도 됩니다.
+6. 오른쪽 아래 **파이프라인 실행**을 누릅니다. 왼쪽 아래 콘솔에서 진행 상태를 확인하고, 완료되면 **결과 폴더 열기**를 누릅니다.
 
-### API 키와 텍스트북 파일
+설정이 한 화면에 보이지 않으면 오른쪽 설정창을 스크롤하세요. 화면별 버튼 위치는 **[그림으로 보는 사용법](docs/user-guide/README.md)**에서 확인할 수 있습니다.
 
-프로젝트 루트에 아래 두 파일을 UTF-8로 저장합니다.
+## 4. 결과 확인하기
 
-```text
-secrets/
-├── openai_api_key.txt   # OpenAI API 키만 한 줄로 입력
-└── textbook.txt         # 전사·번역 규칙과 과목별 용어장
-```
+기본 저장 위치는 앱 폴더의 `output_runs/`이며, 실행할 때마다 새 하위 폴더를 만듭니다. **결과 폴더 열기**로 해당 실행의 파일을 확인하세요.
 
-`textbook.txt`는 다음 형식으로 작성합니다. 과목과 용어를 강의에 맞게 바꾸면 됩니다.
+| 결과물 | 용도 |
+| --- | --- |
+| `.mp4` | 영어 자막이 영상에 합성된 완성본. 자막을 끌 수 없습니다. |
+| `.srt` | 별도로 보관하거나 자막을 지원하는 플레이어에서 사용할 자막 파일 |
+| 한국어·영어 `.txt` | 전사와 번역 내용을 검토할 때 사용 |
 
-```text
-[Common Rules]
-Preserve technical terminology and meaning.
+원본 영상은 보존됩니다. 생성된 자막은 전문 용어와 숫자를 중심으로 확인하세요.
 
-[Whisper Rules]
-한국어 강의. 들리지 않은 단어나 수치는 추측하지 마세요.
+<details>
+<summary>인코딩 중 자막 미리보기와 화면 조절</summary>
 
-[Translation Rules]
-Translate Korean lecture speech into natural English subtitles.
-Do not summarize or invent information.
+SRT 생성이 끝나면 위쪽 원본 영상에 자막이 자동으로 표시됩니다. MP4 인코딩 중에도 재생·탐색할 수 있으며 **미리보기 자막**으로 표시를 켜고 끕니다. 미리보기와 최종 MP4는 글꼴이나 줄바꿈이 다를 수 있습니다.
 
-[Course]
-회로 (Circuits)
+파형을 클릭하거나 드래그하면 재생 위치를 옮길 수 있습니다. 영상·콘솔·설정창 사이의 경계선을 드래그하면 영역 크기가 바뀝니다.
 
-[Terminology]
-전압 = voltage
-전류 = current
-저항 = resistance
-```
+**영상 자막 합성 자막 기준 병렬 처리**를 켜면 여러 구간을 동시에 인코딩합니다. CPU·메모리·임시 디스크 사용량이 늘며 속도는 PC 환경에 따라 달라집니다.
 
-전체 예제는 [packaging/textbook.example.txt](packaging/textbook.example.txt)를 참고하세요. 텍스트북은 앱의 **Tools → 텍스트북 편집기**에서도 수정할 수 있습니다.
+</details>
 
-### 앱 실행
+<details>
+<summary>PPT에서 단어장 자동 만들기 (Auto)</summary>
 
-```powershell
-conda run --no-capture-output -n translator python -m qtTest.app
-```
+1. **Tools → 텍스트북 편집기 → Auto**를 엽니다.
+2. 여러 PPT/PPTX를 드래그하거나 **Open · PPT 파일 추가**로 선택합니다.
+3. 기존 과목을 선택하거나 새 과목명을 입력하고, **OpenAI API / Codex CLI** 중 생성 방식을 선택합니다.
+4. **단어장 생성** 후 후보와 출처를 확인합니다. 필요한 단어만 체크하고 한글명·영어명을 수정합니다.
+5. **선택 단어를 편집기에 추가 → Save**로 저장한 뒤 메인 화면에서 텍스트북을 다시 불러옵니다.
 
-명령줄에서도 실행할 수 있습니다.
+PPTX는 Office 없이 읽을 수 있습니다. 구형 PPT에는 설치된 PowerPoint가 필요하며, 이미지 속 글자와 발표자 노트는 읽지 않습니다. 생성할 때 슬라이드 텍스트와 텍스트북 규칙·기존 단어를 선택한 서비스로 전송합니다.
 
-```powershell
-conda run --no-capture-output -n translator python __main__.py 'C:\videos\lecture.mp4' --course '회로'
-conda run --no-capture-output -n translator python __main__.py --help
-```
+[Auto 화면 설명 보기](docs/user-guide/README.md#auto-ppt-단어장-생성)
 
-영상 경로와 과목 이름은 실제 파일과 텍스트북 내용에 맞게 바꿉니다. 다른 환경 이름을 사용한다면 위 명령의 `-n translator`도 해당 이름으로 바꿉니다.
+</details>
 
-Windows EXE·ZIP 생성에는 실행용 패키지 외에 `pyinstaller==6.22.3`이 필요하며, [packaging/requirements-build.txt](packaging/requirements-build.txt)에 정의되어 있습니다. 빌드 방법은 [packaging/README.md](packaging/README.md), 내부 동작과 상세 옵션은 [개발 문서](docs/development.md)를 참고하세요.
+## 문제가 생겼을 때
+
+<details>
+<summary>실행 버튼, API 키, Codex, 모델 다운로드 문제 해결</summary>
+
+| 증상 | 확인할 것 |
+| --- | --- |
+| EXE가 실행되지 않거나 파일이 없다고 나옴 | ZIP 전체를 압축 해제했는지, `_internal` 폴더가 EXE 옆에 있는지 확인합니다. |
+| 파이프라인 실행 버튼이 비활성화됨 | 영상·텍스트북·과목 선택과 API 키 파일을 확인합니다. Codex라면 모델 목록 로딩 완료 여부도 확인합니다. |
+| 텍스트북이 없거나 과목이 나타나지 않음 | 패키지의 `secrets/textbook.txt`를 선택합니다. 직접 만들었다면 편집기에서 과목·단어를 입력하고 Save한 파일을 다시 불러옵니다. |
+| API 인증 또는 사용량 오류 | 키 파일에 키만 한 줄로 들어 있는지, 해당 API 계정의 결제·사용 한도가 유효한지 확인합니다. |
+| `winget`을 찾을 수 없음 | [Node.js 공식 사이트](https://nodejs.org/)에서 LTS 설치 파일로 설치한 뒤 새 PowerShell에서 Codex 설치를 진행합니다. |
+| `npm.cmd` 또는 `codex.cmd`를 찾을 수 없음 | PowerShell과 앱을 완전히 닫고 다시 엽니다. 같은 Windows 계정에 설치했는지 확인하고 `Get-Command codex.cmd`로 경로를 확인합니다. |
+| Codex 모델 목록을 불러오지 못함 | `codex.cmd login status`로 로그인을 확인하고 앱의 **목록 새로고침**을 누릅니다. |
+| Codex에서 지원하지 않는 옵션 오류 | `npm.cmd install -g @openai/codex@latest`로 업데이트합니다. 이 앱에는 `--ignore-user-config`, `--ephemeral`을 지원하는 CLI가 필요합니다. `codex.cmd exec --help`로 확인하세요. |
+| 첫 로컬 전사가 오래 걸림 | 콘솔에서 모델 다운로드 중인지 확인하고 인터넷 연결·저장 공간을 확인합니다. CPU로 실행 중이면 전사 속도가 느릴 수 있습니다. |
+| GPU 메모리 부족·CUDA 오류 | 다른 GPU 사용 프로그램을 종료하거나 로컬 모델을 `medium`/`small`로 바꾸거나 **CPU 전용**을 선택합니다. |
+| 도중에 실패함 | 콘솔의 마지막 오류와 결과 폴더를 확인합니다. 완료된 중간 파일은 남지만, **파이프라인 실행**을 다시 누르면 새 작업을 시작합니다. |
+
+오류를 공유할 때는 콘솔의 오류 문구와 선택한 전사·번역 방식을 알려 주세요.
+
+</details>
+
+## 더 자세한 안내
+
+- [그림으로 보는 화면별 사용법](docs/user-guide/README.md) · [오프라인 설명서 ZIP](docs/user-guide.zip?raw=true) — ZIP을 풀고 `index.html`을 브라우저로 여세요.
+- [소스 코드로 실행하기와 CLI 명령](docs/source-setup.md)
+- [모델·메모리·복구 등 상세 동작](docs/advanced.md)
+- [개발 문서와 소스 구조](docs/development.md) · [Windows 패키지 빌드](packaging/README.md)

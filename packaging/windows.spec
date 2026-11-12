@@ -11,17 +11,13 @@ a = Analysis(
         entry for package in cuda_packages for entry in collect_dynamic_libs(package)
     ],
     datas=[
-        (str(root / "__main__.py"), "."),
-        (str(root / "qtTest" / "github_dark_replica.qss"), "qtTest"),
+        (str(root / "subtitle_app" / "ui" / "resources" / "github_dark_replica.qss"), "subtitle_app/ui/resources"),
     ] + collect_data_files("imageio_ffmpeg") + collect_data_files("faster_whisper")
       + copy_metadata("faster-whisper") + copy_metadata("huggingface-hub"),
-    hiddenimports=["pipeline", "app_version", "faster_whisper", "tokenizers", "onnxruntime"] + cuda_packages,
+    hiddenimports=["faster_whisper", "tokenizers", "onnxruntime"] + cuda_packages,
     excludes=["PyQt5", "PySide2", "PySide6", "IPython", "matplotlib", "scipy", "pandas",
               "torch", "tensorflow", "transformers", "ctranslate2.converters", "ctranslate2.specs"],
 )
-# The CLI is bundled as cli.py to avoid colliding with the bootloader entry.
-a.datas = [("cli.py" if dest == "__main__.py" else dest, src, kind)
-           for dest, src, kind in a.datas]
 pyz = PYZ(a.pure)
 gui = EXE(pyz, a.scripts, [], exclude_binaries=True,
           name="VideoSubtitleTranslator", console=False, upx=False)

@@ -27,7 +27,7 @@ try {
     New-Item -ItemType Directory -Force -Path "$Bundle/docs" | Out-Null
     Copy-Item -LiteralPath "$ProjectRoot/docs/user-guide" -Destination "$Bundle/docs/user-guide" -Recurse -Force
     Copy-Item -LiteralPath "$ProjectRoot/docs/user-guide.zip" -Destination "$Bundle/docs/user-guide.zip"
-    $ReleaseVersion = & $PythonExe -c "from app_version import __version__; print(__version__)"
+    $ReleaseVersion = & $PythonExe -c "from subtitle_app.common.app_version import __version__; print(__version__)"
     if ($LASTEXITCODE -ne 0) { throw 'Cannot read release version.' }
     $ReleaseVersion | Set-Content -Encoding UTF8 -LiteralPath "$Bundle/VERSION.txt"
     & $PythonExe "$PSScriptRoot/collect_licenses.py" $Bundle

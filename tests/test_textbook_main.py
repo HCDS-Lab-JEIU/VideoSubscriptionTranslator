@@ -9,7 +9,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import QEvent, pyqtSignal
 from PyQt6.QtWidgets import QApplication, QMessageBox, QWidget
 
-from qtTest.MyApp import MyApp
+from subtitle_app.ui.main_window import MyApp
 
 
 class PlayerStub(QWidget):
@@ -25,14 +25,14 @@ class MainEditorTests(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication([])
 
     def setUp(self):
-        with patch("qtTest.MyApp.QVideoPlayer", PlayerStub):
+        with patch("subtitle_app.ui.main_window.QVideoPlayer", PlayerStub):
             self.window = MyApp()
         self.window.show()
         self.app.processEvents()
         self.addCleanup(self.cleanup_window)
 
     def cleanup_window(self):
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Discard):
             self.window.close()
         self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -47,11 +47,11 @@ class MainEditorTests(unittest.TestCase):
         self.window.textbook_action.trigger()
         self.assertIs(self.window.textbook_window, editor_window)
         self.assertEqual(editor_window.editor.document.rules["common_rules"], "draft")
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Cancel):
             self.assertFalse(editor_window.close())
         self.assertTrue(editor_window.isVisible())
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Discard):
             self.assertTrue(editor_window.close())
         self.app.sendPostedEvents(None, QEvent.Type.DeferredDelete)
@@ -63,17 +63,17 @@ class MainEditorTests(unittest.TestCase):
         self.window.open_textbook_editor()
         editor = self.window.textbook_window.editor
         editor.rule_editors["whisper_rules"].setPlainText("unsaved")
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Cancel):
             self.assertFalse(self.window.close())
         self.assertTrue(self.window.isVisible())
         self.assertTrue(self.window.textbook_window.isVisible())
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Save), \
              patch.object(editor, "save", return_value=False):
             self.assertFalse(self.window.close())
         self.assertEqual(editor.document.rules["whisper_rules"], "unsaved")
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question",
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question",
                    return_value=QMessageBox.StandardButton.Discard):
             self.assertTrue(self.window.close())
         self.assertFalse(self.window.isVisible())

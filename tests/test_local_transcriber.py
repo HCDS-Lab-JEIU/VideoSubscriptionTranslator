@@ -9,8 +9,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from local_transcriber import LocalTranscriber, gpu_free_memory_mib
-from media_file import MediaFile
+from subtitle_app.transcription.local_transcriber import LocalTranscriber, gpu_free_memory_mib
+from subtitle_app.media.media_file import MediaFile
 
 
 class LocalTranscriberTests(unittest.TestCase):
@@ -32,8 +32,8 @@ class LocalTranscriberTests(unittest.TestCase):
         self.factory = Mock(return_value=self.model)
         self.addCleanup(patch.stopall)
         patch.dict(sys.modules, {"faster_whisper": SimpleNamespace(WhisperModel=self.factory)}).start()
-        patch("local_transcriber.gpu_free_memory_mib", return_value=5000).start()
-        self.api = patch("audio_transcriber.OpenAI", side_effect=AssertionError("No API allowed")).start()
+        patch("subtitle_app.transcription.local_transcriber.gpu_free_memory_mib", return_value=5000).start()
+        self.api = patch("subtitle_app.transcription.audio_transcriber.OpenAI", side_effect=AssertionError("No API allowed")).start()
 
     def test_gpu_quantization_timestamps_and_cleanup(self):
         audio = MediaFile(self.audio)
@@ -59,11 +59,11 @@ class LocalTranscriberTests(unittest.TestCase):
 
     def test_low_or_unknown_gpu_memory_uses_cpu(self):
         for free in (3000, None):
-            with self.subTest(free=free), patch("local_transcriber.gpu_free_memory_mib", return_value=free):
+            with self.subTest(free=free), patch("subtitle_app.transcription.local_transcriber.gpu_free_memory_mib", return_value=free):
                 self.assertEqual(self.transcriber._select_device(), "cpu")
 
     def test_explicit_cpu_never_queries_gpu(self):
-        with patch("local_transcriber.gpu_free_memory_mib") as query:
+        with patch("subtitle_app.transcription.local_transcriber.gpu_free_memory_mib") as query:
             LocalTranscriber(self.output, self.book, device="cpu").transcribe(MediaFile(self.audio))
         query.assert_not_called()
         self.assertEqual(self.factory.call_args.kwargs["compute_type"], "int8")
@@ -142,9 +142,9 @@ class LocalTranscriberTests(unittest.TestCase):
             self.transcriber.transcribe(MediaFile(self.audio))
 
     def test_gpu_probe_fails_closed(self):
-        with patch("local_transcriber.subprocess.run", side_effect=FileNotFoundError):
+        with patch("subtitle_app.transcription.local_transcriber.subprocess.run", side_effect=FileNotFoundError):
             self.assertIsNone(gpu_free_memory_mib())
-        with patch("local_transcriber.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="4200\n")):
+        with patch("subtitle_app.transcription.local_transcriber.subprocess.run", return_value=SimpleNamespace(returncode=0, stdout="4200\n")):
             self.assertEqual(gpu_free_memory_mib(), 4200)
 
     def test_cli_local_transcription_requires_no_api_key(self):

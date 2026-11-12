@@ -16,12 +16,12 @@ from PyQt6.QtCore import QEventLoop, QMimeData, QPointF, Qt, QTimer, QUrl
 from PyQt6.QtGui import QDropEvent
 from PyQt6.QtWidgets import QApplication, QDialog
 
-from presentation_text import read_presentation, SlideText
-from textbook import Textbook
-from textbook_auto import generate_terms, GenerationCancelled, TermCandidate
-from qtTest.textbook_editor.auto_dialog import AutoTextbookDialog
-from qtTest.textbook_editor.data import TextbookDocument, TextbookRepository
-from qtTest.textbook_editor.editor import TextbookEditor
+from subtitle_app.textbook.presentation_text import read_presentation, SlideText
+from subtitle_app.textbook.document import Textbook
+from subtitle_app.textbook.auto import generate_terms, GenerationCancelled, TermCandidate
+from subtitle_app.ui.textbook_editor.auto_dialog import AutoTextbookDialog
+from subtitle_app.ui.textbook_editor.data import TextbookDocument, TextbookRepository
+from subtitle_app.ui.textbook_editor.editor import TextbookEditor
 
 
 def write_pptx(path, texts, order=None):
@@ -78,13 +78,13 @@ class AutoTests(unittest.TestCase):
         def convert(source, target):
             self.assertEqual(source, old)
             write_pptx(target, ["Old presentation"])
-        with patch("presentation_text._convert_ppt", side_effect=convert):
+        with patch("subtitle_app.textbook.presentation_text._convert_ppt", side_effect=convert):
             self.assertEqual(read_presentation(old)[0].file, "legacy.ppt")
         self.assertEqual(old.read_bytes(), b"original")
 
     def test_malformed_ppt_fails_before_generation(self):
         self.ppt.write_bytes(b"broken")
-        with patch("textbook_auto.check_codex_login"), patch("textbook_auto.request_codex_json") as request:
+        with patch("subtitle_app.textbook.auto.check_codex_login"), patch("subtitle_app.textbook.auto.request_codex_json") as request:
             with self.assertRaisesRegex(ValueError, "PPT"):
                 generate_terms(**self.options())
             request.assert_not_called()
@@ -95,9 +95,9 @@ class AutoTests(unittest.TestCase):
         options = self.options()
         options["paths"].append(second)
         response = {"terms": [{"korean": "전류", "english": "current", "source_ids": [1, 3]}]}
-        with patch("textbook_auto.check_codex_login", return_value=["codex.exe"]), \
-             patch("textbook_auto.load_api_key") as key, \
-             patch("textbook_auto.request_codex_json", return_value=response) as request:
+        with patch("subtitle_app.textbook.auto.check_codex_login", return_value=["codex.exe"]), \
+             patch("subtitle_app.textbook.auto.load_api_key") as key, \
+             patch("subtitle_app.textbook.auto.request_codex_json", return_value=response) as request:
             result = generate_terms(**options)
         key.assert_not_called()
         self.assertEqual(result[0].korean, "전류")
@@ -112,7 +112,7 @@ class AutoTests(unittest.TestCase):
         options.update(backend="openai", api_key_path=self.key)
         response = SimpleNamespace(status="completed", output_text=json.dumps(
             {"terms": [{"korean": "저항", "english": "resistance", "source_ids": [2]}]}))
-        with patch("textbook_auto.OpenAI") as api:
+        with patch("subtitle_app.textbook.auto.OpenAI") as api:
             client = api.return_value.__enter__.return_value
             client.responses.create.return_value = response
             self.assertEqual(generate_terms(**options)[0].english, "resistance")
@@ -127,24 +127,24 @@ class AutoTests(unittest.TestCase):
         for item in ({"korean": "[Course]", "english": "bad", "source_ids": [1]},
                      {"korean": "전류", "english": "current", "source_ids": [99]},
                      {"korean": "전류", "english": "current", "source_ids": [True]}):
-            with patch("textbook_auto.check_codex_login"), \
-                 patch("textbook_auto.request_codex_json", return_value={"terms": [item]}):
+            with patch("subtitle_app.textbook.auto.check_codex_login"), \
+                 patch("subtitle_app.textbook.auto.request_codex_json", return_value={"terms": [item]}):
                 with self.assertRaises(ValueError):
                     generate_terms(**self.options())
         cancel = Event()
         def response(*args, **kwargs):
             cancel.set()
             return {"terms": []}
-        with patch("textbook_auto.check_codex_login"), \
-             patch("textbook_auto.request_codex_json", side_effect=response):
+        with patch("subtitle_app.textbook.auto.check_codex_login"), \
+             patch("subtitle_app.textbook.auto.request_codex_json", side_effect=response):
             with self.assertRaises(GenerationCancelled):
                 generate_terms(**self.options(cancel=cancel))
 
     def test_long_slide_is_chunked_without_discarding_text(self):
         slide = SlideText("large.pptx", 1, "X" * 40000)
-        with patch("textbook_auto.check_codex_login"), \
-             patch("textbook_auto.read_presentation", return_value=[slide]), \
-             patch("textbook_auto.request_codex_json", return_value={"terms": []}) as request:
+        with patch("subtitle_app.textbook.auto.check_codex_login"), \
+             patch("subtitle_app.textbook.auto.read_presentation", return_value=[slide]), \
+             patch("subtitle_app.textbook.auto.request_codex_json", return_value={"terms": []}) as request:
             generate_terms(**self.options())
         chunks = [json.loads(call.args[1].split("\nSlide data:\n")[1]) for call in request.call_args_list]
         self.assertEqual(sum(len(record["text"]) for chunk in chunks for record in chunk), 40000)
@@ -154,7 +154,7 @@ class AutoTests(unittest.TestCase):
         dialog = self.dialog()
         second = self.root / "other.ppt"
         second.write_bytes(b"test")
-        with patch("qtTest.textbook_editor.auto_dialog.QFileDialog.getOpenFileNames",
+        with patch("subtitle_app.ui.textbook_editor.auto_dialog.QFileDialog.getOpenFileNames",
                    return_value=([str(self.ppt), str(second)], "")):
             dialog.open_files()
         mime = QMimeData()
@@ -200,7 +200,7 @@ class AutoTests(unittest.TestCase):
         path.write_text(SOURCE, encoding="utf-8")
         editor = TextbookEditor(TextbookRepository(path))
         self.addCleanup(editor.deleteLater)
-        with patch("qtTest.textbook_editor.editor.AutoTextbookDialog") as factory:
+        with patch("subtitle_app.ui.textbook_editor.editor.AutoTextbookDialog") as factory:
             dialog = factory.return_value
             dialog.exec.return_value = QDialog.DialogCode.Accepted
             dialog.target_course = "회로"
@@ -230,7 +230,7 @@ class AutoTests(unittest.TestCase):
         timer = QTimer()
         timer.timeout.connect(tick)
         timer.start(10)
-        with patch("qtTest.textbook_editor.auto_dialog.generate_terms", side_effect=generation):
+        with patch("subtitle_app.ui.textbook_editor.auto_dialog.generate_terms", side_effect=generation):
             dialog.start_generation()
             QTimer.singleShot(5000, loop.quit)
             loop.exec()

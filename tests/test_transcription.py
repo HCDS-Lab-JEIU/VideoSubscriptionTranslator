@@ -13,19 +13,19 @@ except ImportError:
     import httpx
 from openai import OpenAI
 
-from api_config import load_api_key
-from audio_transcriber import AudioTranscriber, AudioTranscriptionError
-from audio_activity import AudioActivity
-from media_file import MediaFile
-from textbook import Textbook
+from subtitle_app.common.api_config import load_api_key
+from subtitle_app.transcription.audio_transcriber import AudioTranscriber, AudioTranscriptionError
+from subtitle_app.media.audio_activity import AudioActivity
+from subtitle_app.media.media_file import MediaFile
+from subtitle_app.textbook.document import Textbook
 
 
 class TranscriptionTests(unittest.TestCase):
     def setUp(self):
-        activity = patch("audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(5, []))
+        activity = patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(5, []))
         activity.start()
         self.addCleanup(activity.stop)
-        extract = patch("transcription_recovery.extract_clip",
+        extract = patch("subtitle_app.transcription.transcription_recovery.extract_clip",
                         side_effect=lambda source, target, start, end: target.write_bytes(b"mock-clip"))
         extract.start()
         self.addCleanup(extract.stop)
@@ -50,7 +50,7 @@ class TranscriptionTests(unittest.TestCase):
         def factory(**kwargs):
             kwargs["http_client"] = httpx.Client(transport=httpx.MockTransport(handler))
             return OpenAI(**kwargs)
-        return patch("audio_transcriber.OpenAI", side_effect=factory)
+        return patch("subtitle_app.transcription.audio_transcriber.OpenAI", side_effect=factory)
 
     def test_request_and_timestamped_utf8_output(self):
         def handler(request):
@@ -77,7 +77,7 @@ class TranscriptionTests(unittest.TestCase):
             })
         audio = MediaFile(self.mp3)
         with self.client_patch(handler), \
-             patch("audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(62, [(0, 0.12), (1.234, 59.9998), (61.5, 62)])):
+             patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(62, [(0, 0.12), (1.234, 59.9998), (61.5, 62)])):
             transcript = self.transcriber.transcribe(audio)
         self.assertEqual(transcript.file_path.read_text(encoding="utf-8"),
                          "[00:00:00.120, 00:00:01.234] 안녕하세요. 다음 구간입니다.\n"
@@ -86,7 +86,7 @@ class TranscriptionTests(unittest.TestCase):
         raw = transcript.file_path.with_suffix(".json").read_text(encoding="utf-8")
         self.assertEqual(json.loads(raw)["language"], "korean")
         self.assertNotIn("test-key-not-a-real-secret", raw)
-        with patch("audio_transcriber.OpenAI") as client:
+        with patch("subtitle_app.transcription.audio_transcriber.OpenAI") as client:
             with self.assertRaises(FileExistsError):
                 self.transcriber.transcribe(audio)
             client.assert_not_called()
@@ -105,8 +105,8 @@ class TranscriptionTests(unittest.TestCase):
             load_api_key(self.folder / "missing.txt")
 
     def test_full_silence_never_opens_api_client(self):
-        with patch("audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(30, [(0, 30)])), \
-             patch("audio_transcriber.OpenAI") as client:
+        with patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(30, [(0, 30)])), \
+             patch("subtitle_app.transcription.audio_transcriber.OpenAI") as client:
             result = self.transcriber.transcribe(MediaFile(self.mp3))
         client.assert_not_called()
         self.assertEqual(result.file_path.read_text(encoding="utf-8"), "")
@@ -114,7 +114,7 @@ class TranscriptionTests(unittest.TestCase):
         self.assertEqual(report["events"][0]["reason"], "silence")
 
     def test_later_speech_written_after_early_failure_and_exhausted_budget(self):
-        from transcription_recovery import TranscriptionRecovery
+        from subtitle_app.transcription.transcription_recovery import TranscriptionRecovery
         calls = []
         def handler(request):
             body = request.read()
@@ -124,8 +124,8 @@ class TranscriptionTests(unittest.TestCase):
         def factory(*args, **kwargs):
             return TranscriptionRecovery(*args, **kwargs, max_requests=0)
         with self.client_patch(handler), \
-             patch("audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(130, [(10, 60), (70, 120)])), \
-             patch("audio_transcriber.TranscriptionRecovery", side_effect=factory):
+             patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(130, [(10, 60), (70, 120)])), \
+             patch("subtitle_app.transcription.audio_transcriber.TranscriptionRecovery", side_effect=factory):
             result = self.transcriber.transcribe(MediaFile(self.mp3))
         text = result.file_path.read_text(encoding="utf-8")
         self.assertIn("[00:01:00.000, 00:01:10.000]", text)
@@ -151,7 +151,7 @@ class TranscriptionTests(unittest.TestCase):
                               "end": 5 if len(calls) == 1 else 2.5, "text": text}]})
         def extract(source, target, start, end):
             target.write_bytes(b"mock-audio")
-        with self.client_patch(handler), patch("transcription_recovery.extract_clip", side_effect=extract):
+        with self.client_patch(handler), patch("subtitle_app.transcription.transcription_recovery.extract_clip", side_effect=extract):
             result = self.transcriber.transcribe(MediaFile(self.mp3))
         self.assertEqual(len(calls), 2)
         self.assertTrue(all(phrase not in body for body in calls[1:]))
@@ -180,8 +180,8 @@ class TranscriptionTests(unittest.TestCase):
         audio = MediaFile(self.mp3)
         def extract(source, target, start, end):
             target.write_bytes(b"mock-clip")
-        with self.client_patch(handler), patch("transcription_recovery.extract_clip", side_effect=extract), \
-             patch("audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(1900, [])):
+        with self.client_patch(handler), patch("subtitle_app.transcription.transcription_recovery.extract_clip", side_effect=extract), \
+             patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze", return_value=AudioActivity(1900, [])):
             self.transcriber.transcribe(audio, response_file=saved)
         raw = self.output / f"{self.mp3.stem}.json"
         preserved = json.loads(raw.read_text(encoding="utf-8"))["segments"]
@@ -243,7 +243,7 @@ class TranscriptionTests(unittest.TestCase):
         for content in ("", "[Course]\n회로\n[Terminology]\n전압 voltage",
                         "[Unknown]\nvalue", "[Course]\n회로\n[Terminology]\n전압 = voltage\n전압 = V"):
             self.textbook.write_text(content, encoding="utf-8")
-            with patch("audio_transcriber.OpenAI") as client:
+            with patch("subtitle_app.transcription.audio_transcriber.OpenAI") as client:
                 with self.assertRaises(ValueError):
                     self.transcriber.transcribe(MediaFile(self.mp3))
                 client.assert_not_called()
@@ -251,7 +251,7 @@ class TranscriptionTests(unittest.TestCase):
     def test_selected_course_is_the_only_course_sent_to_transcription(self):
         with self.textbook.open("a", encoding="utf-8") as output:
             output.write("[Course]\nAI/ML Applications\n[Terminology]\n텐서 = tensor\n")
-        with patch("audio_transcriber.OpenAI") as client:
+        with patch("subtitle_app.transcription.audio_transcriber.OpenAI") as client:
             with self.assertRaisesRegex(ValueError, "--course"):
                 self.transcriber.transcribe(MediaFile(self.mp3))
             client.assert_not_called()
@@ -268,7 +268,7 @@ class TranscriptionTests(unittest.TestCase):
             self.transcriber.transcribe(MediaFile(self.mp3))
 
     def test_selected_course_is_the_only_course_sent_to_translation(self):
-        from subtitle_translator import SubtitleTranslator
+        from subtitle_app.translation.subtitle_translator import SubtitleTranslator
         with self.textbook.open("a", encoding="utf-8") as output:
             output.write("[Course]\nAI/ML Applications\n[Terminology]\n텐서 = tensor\n")
         source = self.folder / "lecture_kr.txt"
@@ -280,7 +280,7 @@ class TranscriptionTests(unittest.TestCase):
             self.assertNotIn("반도체 회로", instructions)
             self.assertNotIn("voltage", instructions)
             return {str(i): "This is a tensor." for i in indices}
-        with patch("subtitle_translator.OpenAI"), \
+        with patch("subtitle_app.translation.subtitle_translator.OpenAI"), \
              patch.object(translator, "_request_translations", side_effect=request):
             result = translator.translate(source)
         self.assertIn("This is a tensor.", result.read_text(encoding="utf-8"))
@@ -288,7 +288,7 @@ class TranscriptionTests(unittest.TestCase):
     def test_oversized_input_stops_before_api_call(self):
         with self.mp3.open("wb") as output:
             output.truncate(AudioTranscriber.MAX_FILE_BYTES)
-        with patch("audio_transcriber.OpenAI") as client:
+        with patch("subtitle_app.transcription.audio_transcriber.OpenAI") as client:
             with self.assertRaises(ValueError):
                 self.transcriber.transcribe(MediaFile(self.mp3))
             client.assert_not_called()
@@ -314,7 +314,7 @@ class TranscriptionTests(unittest.TestCase):
                     "message": "Audio is too short. test-key-not-a-real-secret",
                 }})
             return httpx.Response(200, json={"text": "후반부 실제 발화입니다."})
-        with self.client_patch(handler), patch("audio_transcriber.AudioActivity.analyze",
+        with self.client_patch(handler), patch("subtitle_app.transcription.audio_transcriber.AudioActivity.analyze",
                 return_value=AudioActivity(10, [(0.062, 5)])):
             result = self.transcriber.transcribe(MediaFile(self.mp3))
         self.assertEqual(len(calls), 3)

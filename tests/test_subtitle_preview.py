@@ -9,9 +9,9 @@ from unittest.mock import patch
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PyQt6.QtWidgets import QApplication
-from qtTest.subtitle_preview import SubtitleTrack
-from qtTest.videoPlayer import QVideoPlayer
-from qtTest.MyApp import MyApp
+from subtitle_app.ui.player.subtitle_preview import SubtitleTrack
+from subtitle_app.ui.player.video_player import QVideoPlayer
+from subtitle_app.ui.main_window import MyApp
 
 
 SRT = ("1\n00:00:01,000 --> 00:00:03,000\nVoltage < current\nsecond line\n\n"

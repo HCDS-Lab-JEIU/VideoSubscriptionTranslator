@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from textbook import Textbook
+from subtitle_app.textbook.document import Textbook
 
 
 class TextbookTests(unittest.TestCase):

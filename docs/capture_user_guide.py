@@ -14,12 +14,12 @@ from PyQt6.QtCore import QPoint, QRectF, Qt
 from PyQt6.QtGui import QColor, QFont, QFontDatabase, QImage, QPainter, QPen
 from PyQt6.QtMultimedia import QVideoFrame
 from PyQt6.QtWidgets import QApplication, QListWidgetItem
-from qtTest.MyApp import MyApp
-from qtTest.textbook_editor.editor import TextbookEditorWindow
-from qtTest.textbook_editor.auto_dialog import AutoTextbookDialog
-from qtTest.textbook_editor.data import TextbookDocument, TextbookRepository
-from textbook import Textbook
-from textbook_auto import TermCandidate
+from subtitle_app.ui.main_window import MyApp
+from subtitle_app.ui.textbook_editor.editor import TextbookEditorWindow
+from subtitle_app.ui.textbook_editor.auto_dialog import AutoTextbookDialog
+from subtitle_app.ui.textbook_editor.data import TextbookDocument, TextbookRepository
+from subtitle_app.textbook.document import Textbook
+from subtitle_app.textbook.auto import TermCandidate
 
 OUT = ROOT / "docs" / "user-guide"
 (OUT / "raw").mkdir(parents=True, exist_ok=True)

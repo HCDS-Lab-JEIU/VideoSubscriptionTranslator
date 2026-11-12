@@ -4,7 +4,7 @@
 
 강의를 듣고 받아쓰는 사람, 영어로 옮기는 사람, 영상에 글자를 붙이는 사람이 차례로 일한다고 생각하면 됩니다. Python은 순서를 정하고 파일을 전달합니다. 받아쓰기와 번역은 OpenAI API가, 소리 추출과 영상 합성은 FFmpeg가 담당합니다.
 
-이 문서는 쉬운 비유에서 시작해 실제 클래스와 함수까지 연결합니다. 명령은 프로젝트 루트에서 실행합니다. 간단한 사용법은 [README](../README.md)를 참고하세요.
+이 문서는 기본 OpenAI API 처리 흐름에서 시작해 실제 클래스와 함수까지 연결합니다. 명령은 프로젝트 루트에서 실행합니다. 설치·사용법은 [README](../README.md), Python 환경 준비는 [소스 실행 안내](source-setup.md), 로컬 Whisper와 Codex의 상세 동작은 [모델과 처리 방식](advanced.md)을 참고하세요.
 
 ## 1. 전체 그림부터 보기
 
@@ -46,7 +46,7 @@ Python 3.10 이상과 Miniconda의 **`translator` 환경**을 사용합니다. �
 ```powershell
 Set-Location 'D:\VideoSubsribProject'
 & 'D:\Miniconda3\envs\translator\python.exe' -m pip install -r requirements.txt
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py --help
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py --help
 ```
 
 인터프리터가 없다면 먼저 `translator` 환경을 준비해야 합니다. 프로젝트에서는 `.venv`나 Miniconda base 환경을 사용하지 않습니다.
@@ -58,14 +58,14 @@ Set-Location 'D:\VideoSubsribProject'
 | `openai` | 전사·번역 API 요청 |
 | `PyQt6` | 영상 플레이어와 텍스트북 편집기 화면 |
 
-FFmpeg는 영상·소리를 변환하는 별도 프로그램입니다. `ffmpeg_tools.py`는 PATH의 `ffmpeg`를 먼저 찾고, 없으면 `imageio-ffmpeg`의 실행 파일을 사용합니다. 자막 합성에는 `subtitles` 필터(libass 지원)가 필요합니다.
+FFmpeg는 영상·소리를 변환하는 별도 프로그램입니다. `subtitle_app/media/ffmpeg_tools.py`는 PATH의 `ffmpeg`를 먼저 찾고, 없으면 `imageio-ffmpeg`의 실행 파일을 사용합니다. 자막 합성에는 `subtitles` 필터(libass 지원)가 필요합니다.
 
 ### API 키와 텍스트북 준비
 
 메인 앱에서 실행하려면 다음 명령을 사용합니다.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' qtTest/app.py
+& 'D:\Miniconda3\envs\translator\python.exe' -m subtitle_app.ui.app
 ```
 
 영상 아래 실행 패널에서 **영상 선택 → 텍스트북 불러오기 → 과목 선택 → 파이프라인 실행** 순서로 진행합니다. 기본 텍스트북이 있으면 시작할 때 불러오며, 과목이 하나면 자동 선택하고 여러 개면 선택 목록에서 직접 고릅니다. API 키 파일과 결과 저장 위치도 패널에서 변경할 수 있습니다. 편집기에서 수정한 텍스트북은 저장한 뒤 다시 불러오세요.
@@ -107,7 +107,7 @@ Do not summarize or omit technical meaning.
 ### 영상 하나로 전체 실행
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --course '회로'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'D:\videos\lecture_kr.mp4' --course '회로'
 ```
 
 **작업 옵션을 생략하면 전체 5단계가 실행됩니다.** `--pipeline`을 붙여도 같습니다. 콘솔에 현재 단계와 결과 경로가 표시됩니다.
@@ -132,11 +132,11 @@ output_runs/
 
 ## 3. 코드에서는 어떤 일이 일어날까?
 
-### 입구와 작업 반장: `__main__.py`, `pipeline.py`
+### 입구와 작업 반장: `subtitle_app/cli.py`, `subtitle_app/pipeline/runner.py`
 
-`__main__.py`의 `main()`은 명령줄을 읽는 안내 데스크입니다. 경로와 옵션을 보고 전체 작업 또는 개별 작업을 선택합니다. 작업 옵션은 한 번에 하나만 사용할 수 있습니다.
+`subtitle_app/cli.py`의 `main()`은 명령줄을 읽는 안내 데스크입니다. 경로와 옵션을 보고 전체 작업 또는 개별 작업을 선택합니다. 작업 옵션은 한 번에 하나만 사용할 수 있습니다.
 
-`pipeline.py`의 `run_pipeline()`은 작업 반장입니다. 입력 영상과 설정을 확인하고 실행 폴더를 만든 다음, 다음 순서로 결과를 전달합니다.
+`subtitle_app/pipeline/runner.py`의 `run_pipeline()`은 작업 반장입니다. 입력 영상과 설정을 확인하고 실행 폴더를 만든 다음, 다음 순서로 결과를 전달합니다.
 
 ```python
 # 실제 호출 관계를 간단히 표현한 의사 코드입니다.
@@ -149,7 +149,7 @@ result = subtitler.render(video.file_path, srt, output_path)
 
 각 담당자는 자기 단계만 처리합니다. 중간에 오류가 나면 다음 단계로 넘어가지 않고 완료된 파일은 남겨 둡니다. CLI는 성공 시 `0`, 처리한 작업 오류 시 `1`을 반환합니다.
 
-### 1단계: `audio_extractor.py` — 소리만 담은 작은 파일 만들기
+### 1단계: `subtitle_app/media/audio_extractor.py` — 소리만 담은 작은 파일 만들기
 
 `AudioExtractor.extract()`는 FFmpeg를 실행해 첫 번째 오디오 트랙을 MP3로 저장합니다. 기본 설정은 **모노, 16kHz, 32kbps**입니다. 음성 전송용으로 크기를 줄이므로 음질과 채널 정보가 줄어듭니다.
 
@@ -157,7 +157,7 @@ result = subtitler.render(video.file_path, srt, output_path)
 
 `AudioFile`은 **파일 위치와 설명이 적힌 카드**입니다. 실제 소리는 디스크의 MP3에 있고, 객체에는 경로·재생 시간·샘플레이트·채널·비트레이트·용량 등이 담깁니다.
 
-### 2단계: `audio_transcriber.py` — 시간표가 붙은 받아쓰기
+### 2단계: `subtitle_app/transcription/audio_transcriber.py` — 시간표가 붙은 받아쓰기
 
 `AudioTranscriber.transcribe()`는 MP3와 텍스트북 힌트를 API에 보냅니다. 기본 모델은 `gpt-transcribe`이며 한국어 힌트(`languages=["ko"]`)를 사용합니다. 기존 전체 전사를 복구하는 Whisper 경로만 `verbose_json`과 구간 타임스탬프(`segment`)를 요청합니다.
 
@@ -173,7 +173,7 @@ result = subtitler.render(video.file_path, srt, output_path)
 
 이 한 줄은 “1.2초부터 4.56초까지 이 문장을 보여 달라”는 뜻입니다. 현재는 단어별 시간 대신 음성 구간별 시간을 사용합니다.
 
-### 3단계: `subtitle_translator.py` — 시간은 유지하고 말만 바꾸기
+### 3단계: `subtitle_app/translation/subtitle_translator.py` — 시간은 유지하고 말만 바꾸기
 
 `TranscriptReader`가 TXT를 읽으면 시간 표기와 본문이 분리됩니다. 번역기는 구간마다 번호를 붙여 API에 보내고 같은 번호의 영어 문장을 돌려받습니다.
 
@@ -190,7 +190,7 @@ result = subtitler.render(video.file_path, srt, output_path)
 
 기록의 `fingerprint`는 입력 자막·모델·번역 지시문의 조합을 해시로 요약한 값입니다. 이 값이 달라지면 이전 작업을 섞지 않도록 중단하고 새 출력 경로를 요구합니다.
 
-### 4단계: `srt_writer.py` — 자막 플레이어가 읽는 양식으로 바꾸기
+### 4단계: `subtitle_app/subtitles/srt_writer.py` — 자막 플레이어가 읽는 양식으로 바꾸기
 
 `SrtWriter.write()`는 TXT를 SRT 형식으로 바꿉니다. 번호를 붙이고 시간의 소수점을 쉼표로 바꾸며, 시작과 끝 사이에 `-->`를 넣습니다.
 
@@ -202,18 +202,18 @@ Measure the voltage.
 
 번역이나 시간 재계산은 하지 않습니다. 긴 본문은 64자 폭을 기준으로 줄바꿈합니다.
 
-### 5단계: `video_subtitler.py` — 영상 화면에 글자 그리기
+### 5단계: `subtitle_app/rendering/video_subtitler.py` — 영상 화면에 글자 그리기
 
 `VideoSubtitler.render()`는 원본 영상과 SRT를 FFmpeg에 전달합니다. 첫 번째 영상 트랙과 첫 번째 오디오 트랙(있는 경우)을 사용하고, H.264 영상과 AAC 음성으로 다시 인코딩합니다.
 
 자막은 화면에 직접 그려집니다. 글꼴·크기·테두리·아래 여백은 이 파일의 `force_style` 설정에 있습니다. 임시 영상 생성이 성공해야 최종 MP4로 복사합니다.
 
-기본값은 기존 단일 FFmpeg 실행입니다. GUI의 **영상 자막 합성 구간별 병렬 처리** 또는 CLI의 `--parallel-render`를 켜면 `parallel_video_renderer.py`가 영상을 60초 구간으로 나누어 최대 4개씩 처리합니다. CPU 수에 따라 동시 실행 수와 인코더 스레드를 제한합니다. 원본 파일을 구간별로 직접 읽으므로 사전 영상 분할은 하지 않습니다.
+기본값은 기존 단일 FFmpeg 실행입니다. GUI의 **영상 자막 합성 구간별 병렬 처리** 또는 CLI의 `--parallel-render`를 켜면 `subtitle_app/rendering/parallel_video_renderer.py`가 영상을 60초 구간으로 나누어 최대 4개씩 처리합니다. CPU 수에 따라 동시 실행 수와 인코더 스레드를 제한합니다. 원본 파일을 구간별로 직접 읽으므로 사전 영상 분할은 하지 않습니다.
 
 자막을 그릴 때 원본 시간축을 복원하고 구간 연결 시 첫 프레임의 시간 오프셋을 유지합니다. 완성 구간은 영상 재압축 없이 연결하고, 음성은 원본에서 한 번만 AAC로 인코딩합니다. 구간 하나가 실패하면 다른 FFmpeg 작업도 종료하며 임시 파일을 정리합니다. CPU·메모리·임시 디스크 사용량이 증가하며, 속도 개선은 입력 영상과 하드웨어에 따라 달라집니다. 영상 길이를 읽을 수 없는 파일은 병렬 모드에서 오류를 표시하므로 체크를 해제해 실행하세요.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture.mp4' --course '회로' --parallel-render
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'D:\videos\lecture.mp4' --course '회로' --parallel-render
 ```
 
 ## 4. 데이터 모델을 읽는 방법
@@ -236,7 +236,7 @@ Measure the voltage.
 
 ## 5. 텍스트북은 AI에게 건네는 강의 메모
 
-텍스트북은 **이번 강의의 용어와 작업 규칙을 적은 설정 파일**입니다. `textbook.py`가 이를 읽어 API에 보낼 prompt(참고 문구·지시문)를 만듭니다.
+텍스트북은 **이번 강의의 용어와 작업 규칙을 적은 설정 파일**입니다. `subtitle_app/textbook/document.py`가 이를 읽어 API에 보낼 prompt(참고 문구·지시문)를 만듭니다.
 
 | 섹션 | 쉬운 설명 | 사용 단계 |
 | --- | --- | --- |
@@ -254,10 +254,10 @@ Measure the voltage.
 
 ```powershell
 # 목록 확인만 수행: 입력 영상과 API 키 불필요
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py --list-courses
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py --list-courses
 
 # 기본 텍스트북의 AI/ML 과목만 사용
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --course 'AI/ML'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'D:\videos\lecture_kr.mp4' --course 'AI/ML'
 ```
 
 `--textbook-file`로 다른 파일을 선택할 수도 있습니다. 목록 번호는 파일을 재정렬하면 바뀌므로 반복 실행에는 과목명을 권장합니다. 공통·단계별 규칙에 직접 적힌 다른 과목 내용은 자동으로 제거하지 않습니다. 토큰 수 자동 계산·축약은 지원하지 않습니다. 무음 검사와 복구 요청 상한은 아래 전사 자동 복구 절을 참고하세요.
@@ -268,19 +268,19 @@ Measure the voltage.
 
 ```powershell
 # 1. 영상 → MP3 (로컬)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --extract
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'D:\videos\lecture_kr.mp4' --extract
 
 # 2. MP3 → 한국어 TXT + JSON (유료 API)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_audios\lecture_kr.mp3' --transcribe --course '회로'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'output_audios\lecture_kr.mp3' --transcribe --course '회로'
 
 # 3. 한국어 TXT → 영어 TXT (유료 API)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_txts\lecture_kr.txt' --translate --course '회로'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'output_txts\lecture_kr.txt' --translate --course '회로'
 
 # 4. 영어 TXT → SRT (로컬)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_txts\lecture_en.txt' --make-srt
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'output_txts\lecture_en.txt' --make-srt
 
 # 5. 원본 영상 + 영어 TXT → 자막 MP4 (로컬, SRT도 생성)
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'D:\videos\lecture_kr.mp4' --render --subtitle-file 'output_txts\lecture_en.txt'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'D:\videos\lecture_kr.mp4' --render --subtitle-file 'output_txts\lecture_en.txt'
 ```
 
 | 개별 작업 | 기본 출력 |
@@ -314,7 +314,7 @@ Measure the voltage.
 예를 들어 번역 중 멈췄다면 콘솔에 출력된 실제 실행 폴더를 사용합니다. 아래의 `실제실행폴더`를 해당 폴더명으로 바꾸세요.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_runs\실제실행폴더\transcripts\lecture_kr.txt' --translate --course '회로'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'output_runs\실제실행폴더\transcripts\lecture_kr.txt' --translate --course '회로'
 ```
 
 이 명령은 같은 영어 출력 경로의 진행 JSON을 읽습니다. 완료된 영어 TXT가 이미 있으면 번역 대신 `--render`로 진행하면 됩니다. 자막 TXT의 시간 기준은 원본 영상과 같아야 합니다.
@@ -353,34 +353,34 @@ Windows에서 복구 기록 JSON 교체가 `WinError 5` 등 접근 거부로 실
 Iris 분류 강의에는 짧은 전용 텍스트북을 사용하세요. `sepal`, `petal`, `length`, `width`의 실제 영어 표기를 `[Whisper Rules]`로 전사에 전달합니다. 모호한 `배틀링스`를 특정 특성으로 일괄 치환하지 않습니다.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --pipeline --textbook-file 'textbooks\aiml_iris.txt'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --pipeline --textbook-file 'textbooks\aiml_iris.txt'
 ```
 
 이전 버전의 전체 전사 원본 JSON에서 의심 구간만 복구하려면 **그 JSON을 만들 때 사용한 동일 MP3**와 새로운 출력 폴더를 지정합니다. MP3와 JSON의 시간축·영상 대응 여부는 사용자가 확인해야 합니다. 이 명령은 전사까지만 실행하며 기존 번역·영상은 변경하지 않습니다. 새 분할 전사의 병합본에는 사용할 수 없습니다.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' __main__.py 'output_runs\classifier-s_8z6d05\audio\classifier.mp3' --transcribe --transcription-response 'output_runs\classifier-s_8z6d05\transcripts\classifier.json' --textbook-file 'textbooks\aiml_iris.txt' --transcript-output-dir 'output_runs\classifier_repaired\transcripts'
+& 'D:\Miniconda3\envs\translator\python.exe' subtitle_app/cli.py 'output_runs\classifier-s_8z6d05\audio\classifier.mp3' --transcribe --transcription-response 'output_runs\classifier-s_8z6d05\transcripts\classifier.json' --textbook-file 'textbooks\aiml_iris.txt' --transcript-output-dir 'output_runs\classifier_repaired\transcripts'
 ```
 
 짧은 구간의 기존 힌트·Iris 힌트·대체 모델 비교와 강의 화면 캡처는 다음 명령으로 수행합니다(유료 API). 결과 시간은 잘라낸 음성 기준이며 `comparison.json`에 원본 시작 시각이 기록됩니다.
 
 ```powershell
-& 'D:\Miniconda3\envs\translator\python.exe' check_iris_terms.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --start 1789 --seconds 30
+& 'D:\Miniconda3\envs\translator\python.exe' tools/check_iris_terms.py 'C:\Users\Ataraxia\Videos\classifier.mp4' --start 1789 --seconds 30
 ```
 
 ## 8. GUI는 영상 플레이어와 텍스트북 편집기
 
-`qtTest/`라는 폴더 이름이지만 그 안에는 실제 PyQt6 앱 코드가 있습니다. GUI는 영상 재생·오디오 파형 표시, 텍스트북 편집과 전체 자막 파이프라인 실행을 제공합니다.
+실제 PyQt6 앱 코드는 `subtitle_app/ui/`에 있으며 `qtTest/`에는 기존 실행 명령을 지원하는 진입점만 남아 있습니다. GUI는 영상 재생·오디오 파형 표시, 텍스트북 편집과 전체 자막 파이프라인 실행을 제공합니다.
 
 ```powershell
 # 영상 플레이어
-& 'D:\Miniconda3\envs\translator\python.exe' -m qtTest.app
+& 'D:\Miniconda3\envs\translator\python.exe' -m subtitle_app.ui.app
 
 # 텍스트북 편집기만 실행
-& 'D:\Miniconda3\envs\translator\python.exe' -m qtTest.textbook_editor
+& 'D:\Miniconda3\envs\translator\python.exe' -m subtitle_app.ui.textbook_editor
 
 # 특정 텍스트북을 열어 실행
-& 'D:\Miniconda3\envs\translator\python.exe' -m qtTest.textbook_editor --textbook-file 'secrets\textbook.txt'
+& 'D:\Miniconda3\envs\translator\python.exe' -m subtitle_app.ui.textbook_editor --textbook-file 'secrets\textbook.txt'
 ```
 
 플레이어에서 `Ctrl+O`로 영상을 열고, `Tools → 텍스트북 편집기` 또는 `Ctrl+Shift+T`로 편집창을 엽니다. 파형을 클릭하면 재생 위치를 이동할 수 있습니다.
@@ -389,7 +389,7 @@ Iris 분류 강의에는 짧은 전용 텍스트북을 사용하세요. `sepal`,
 
 저장하면 파일을 표준 섹션 형식으로 다시 쓰므로 기존 주석과 공백 배치는 유지하지 않습니다. 다른 파일을 열거나 창을 닫을 때 미저장 내용을 확인합니다.
 
-편집기 코드는 세 역할로 나뉩니다. 아래 파일은 모두 `qtTest/textbook_editor/` 안에 있습니다.
+편집기 코드는 세 역할로 나뉩니다. 아래 파일은 모두 `subtitle_app/ui/textbook_editor/` 안에 있습니다.
 
 | 파일 | 비유 | 책임 |
 | --- | --- | --- |
@@ -397,30 +397,55 @@ Iris 분류 강의에는 짧은 전용 텍스트북을 사용하세요. `sepal`,
 | `model.py` | 공책과 표 사이의 연결자 | 과목별 데이터를 Qt 테이블에 연결 |
 | `editor.py` | 책상 위 화면 | 버튼, 규칙 입력창, 표, 저장·열기 동작 |
 
-`data.py`는 Qt 없이 데이터와 파일을 다룰 수 있도록 분리되어 있습니다. `qtTest/MyApp.py`는 편집창 열기·재사용·종료를 연결합니다. `qtTest/AudioWaveVisualizer.py`는 별도 작업 스레드에서 파형 데이터를 만들고 화면에 그립니다.
+`data.py`는 Qt 없이 데이터와 파일을 다룰 수 있도록 분리되어 있습니다. `subtitle_app/ui/main_window.py`는 편집창 열기·재사용·종료를 연결합니다. `subtitle_app/ui/player/audio_wave_visualizer.py`는 별도 작업 스레드에서 파형 데이터를 만들고 화면에 그립니다.
 
 ## 9. 개발할 때 어느 파일부터 보면 될까?
 
-처음에는 **`__main__.py` → `pipeline.py` → 관심 있는 단계의 모듈** 순서로 읽으면 됩니다. 전체 호출 관계를 이해한 다음 세부 구현으로 들어갈 수 있습니다.
+### 소스 구조
+
+실제 구현은 `subtitle_app/` 아래에 기능별로 모았습니다.
+
+| 경로 | 역할 |
+| --- | --- |
+| `subtitle_app/cli.py` | CLI 옵션과 실행 진입점 |
+| `subtitle_app/common/` | API 키, 사용자 파일 경로, 버전, 콘솔 상태 |
+| `subtitle_app/media/` | 미디어 정보, 오디오 추출, 음성 구간 분석, FFmpeg 탐색 |
+| `subtitle_app/transcription/` | OpenAI·로컬 Whisper 전사, 구간 복구, 복구 보고서 |
+| `subtitle_app/translation/` | OpenAI·Codex 번역, Codex 모델 조회 |
+| `subtitle_app/subtitles/` | 자막 데이터, TXT 읽기·쓰기, SRT 생성 |
+| `subtitle_app/rendering/` | 자막 영상 합성, 병렬 렌더링 |
+| `subtitle_app/textbook/` | 텍스트북 형식·규칙, PPT 읽기, 단어장 자동 생성 |
+| `subtitle_app/pipeline/` | 단계 실행과 자막 준비 이벤트 |
+| `subtitle_app/ui/` | 메인 창·설정, `player/`, `textbook_editor/`, `resources/` |
+| `tools/` | 개발용 비교 도구 |
+| `tests/`, `packaging/`, `docs/` | 테스트, Windows 빌드, 설명서 |
+| `legacy/` | 실행에 사용하지 않는 초기 코드 보관 |
+
+GUI는 `-m subtitle_app.ui.app`, CLI는 `-m subtitle_app`, 텍스트북 편집기는 `-m subtitle_app.ui.textbook_editor`로 실행합니다. 기존 `__main__.py`, `-m qtTest.app`, `-m qtTest.textbook_editor` 명령도 호환 진입점을 통해 동작합니다. 기본 `secrets/`, `models/`, 결과 폴더는 계속 프로젝트 루트에 생성되며, EXE에서는 실행 파일 옆에 생성됩니다.
+
+처음에는 **`subtitle_app/cli.py` → `subtitle_app/pipeline/runner.py` → 관심 있는 단계의 모듈** 순서로 읽으면 됩니다. 전체 호출 관계를 이해한 다음 세부 구현으로 들어갈 수 있습니다.
 
 | 바꾸고 싶은 동작 | 먼저 볼 파일 |
 | --- | --- |
-| CLI 옵션·기본 출력 경로 | [__main__.py](../__main__.py) |
-| 전체 작업 순서·실행 폴더 | [pipeline.py](../pipeline.py) |
-| MP3 음질·샘플레이트·채널 | [audio_extractor.py](../audio_extractor.py) |
-| 전사 모델·언어·응답 처리 | [audio_transcriber.py](../audio_transcriber.py) |
-| 번역 모델·묶음 크기·재요청·이어하기 | [subtitle_translator.py](../subtitle_translator.py) |
+| CLI 옵션·기본 출력 경로 | [subtitle_app/cli.py](../subtitle_app/cli.py) |
+| 전체 작업 순서·실행 폴더 | [subtitle_app/pipeline/runner.py](../subtitle_app/pipeline/runner.py) |
+| MP3 음질·샘플레이트·채널 | [subtitle_app/media/audio_extractor.py](../subtitle_app/media/audio_extractor.py) |
+| 전사 모델·언어·응답 처리 | [subtitle_app/transcription/audio_transcriber.py](../subtitle_app/transcription/audio_transcriber.py) |
+| 로컬 Whisper 실행·GPU 선택 | [subtitle_app/transcription/local_transcriber.py](../subtitle_app/transcription/local_transcriber.py) |
+| 번역 모델·묶음 크기·재요청·이어하기 | [subtitle_app/translation/subtitle_translator.py](../subtitle_app/translation/subtitle_translator.py) |
+| Codex 번역·모델 목록 | [subtitle_app/translation/codex_translator.py](../subtitle_app/translation/codex_translator.py), [subtitle_app/translation/codex_models.py](../subtitle_app/translation/codex_models.py) |
 | 강의 용어·일반 작업 규칙 | 로컬 `secrets/textbook.txt` |
-| 텍스트북 형식·prompt 구성 | [textbook.py](../textbook.py) |
-| 자막 TXT 읽기·쓰기 | [transcript_reader.py](../transcript_reader.py), [transcript_writer.py](../transcript_writer.py) |
-| 파일·자막 데이터 구조 | [media_file.py](../media_file.py), [subtitle.py](../subtitle.py) |
-| SRT 줄바꿈·출력 형식 | [srt_writer.py](../srt_writer.py) |
-| 자막 모양·영상 인코딩 | [video_subtitler.py](../video_subtitler.py) |
-| FFmpeg 탐색·API 키 읽기·대기 표시 | [ffmpeg_tools.py](../ffmpeg_tools.py), [api_config.py](../api_config.py), [console_status.py](../console_status.py) |
-| GUI 시작·메뉴·영상 재생 | [qtTest/app.py](../qtTest/app.py), [qtTest/MyApp.py](../qtTest/MyApp.py), [qtTest/videoPlayer.py](../qtTest/videoPlayer.py) |
-| 텍스트북 편집 화면 | [qtTest/textbook_editor/editor.py](../qtTest/textbook_editor/editor.py) |
+| 텍스트북 형식·prompt 구성 | [subtitle_app/textbook/document.py](../subtitle_app/textbook/document.py) |
+| PPT 단어장 생성·슬라이드 추출 | [subtitle_app/textbook/auto.py](../subtitle_app/textbook/auto.py), [subtitle_app/textbook/presentation_text.py](../subtitle_app/textbook/presentation_text.py) |
+| 자막 TXT 읽기·쓰기 | [subtitle_app/subtitles/transcript_reader.py](../subtitle_app/subtitles/transcript_reader.py), [subtitle_app/subtitles/transcript_writer.py](../subtitle_app/subtitles/transcript_writer.py) |
+| 파일·자막 데이터 구조 | [subtitle_app/media/media_file.py](../subtitle_app/media/media_file.py), [subtitle_app/subtitles/subtitle.py](../subtitle_app/subtitles/subtitle.py) |
+| SRT 줄바꿈·출력 형식 | [subtitle_app/subtitles/srt_writer.py](../subtitle_app/subtitles/srt_writer.py) |
+| 자막 모양·영상 인코딩 | [subtitle_app/rendering/video_subtitler.py](../subtitle_app/rendering/video_subtitler.py) |
+| FFmpeg 탐색·API 키 읽기·대기 표시 | [subtitle_app/media/ffmpeg_tools.py](../subtitle_app/media/ffmpeg_tools.py), [subtitle_app/common/api_config.py](../subtitle_app/common/api_config.py), [subtitle_app/common/console_status.py](../subtitle_app/common/console_status.py) |
+| GUI 시작·메뉴·영상 재생 | [subtitle_app/ui/app.py](../subtitle_app/ui/app.py), [subtitle_app/ui/main_window.py](../subtitle_app/ui/main_window.py), [subtitle_app/ui/player/video_player.py](../subtitle_app/ui/player/video_player.py) |
+| 텍스트북 편집 화면 | [subtitle_app/ui/textbook_editor/editor.py](../subtitle_app/ui/textbook_editor/editor.py) |
 
-루트의 `OpenAITranscriber.py`에는 `opeanai` import 오타 등이 있는 미완성 코드가 남아 있습니다. 현재 CLI·파이프라인이 사용하는 전사 구현은 **`audio_transcriber.py`의 `AudioTranscriber`**입니다.
+`legacy/OpenAITranscriber.py`는 초기 미완성 코드를 보관한 파일이며 앱 실행과 패키징에는 사용하지 않습니다. 현재 API 전사는 **`subtitle_app/transcription/audio_transcriber.py`의 `AudioTranscriber`**, 로컬 전사는 **`subtitle_app/transcription/local_transcriber.py`의 `LocalTranscriber`**가 담당합니다.
 
 전사 복구 시 음성 분할을 지원합니다. 25MB 이상 입력의 자동 분할, 전체 파이프라인 이어하기, 텍스트북 라이브러리 선택·영상별 과목 연결은 현재 구현되어 있지 않습니다.
 
@@ -439,5 +464,6 @@ Iris 분류 강의에는 짧은 전용 텍스트북을 사용하세요. `sepal`,
 | `test_textbook.py` | 과목·규칙 파싱, 전사와 번역에 맞는 규칙 전달 |
 | `test_textbook_editor.py` | 편집·저장, 입력 검증, 저장 실패 시 기존 파일 보존 |
 | `test_textbook_main.py` | 메뉴에서 편집창 재사용, 미저장 내용이 있는 상태의 종료 처리 |
+| `test_entry_points.py` | 새 패키지와 기존 실행 명령, 사용자 파일의 기본 경로 유지 |
 
 이 테스트만으로 실제 음성 인식·번역 품질이나 FFmpeg의 최종 영상 결과까지 확인되는 것은 아닙니다. 해당 부분을 수정했다면 짧은 샘플 영상으로 관련 단계를 실행해 결과도 확인하세요.

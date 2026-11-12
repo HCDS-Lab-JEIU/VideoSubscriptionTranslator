@@ -13,13 +13,13 @@ def check_runtime():
     import numpy as np
     import tokenizers
     from faster_whisper.vad import get_vad_model
-    from local_transcriber import configure_cuda_libraries
-    from presentation_text import read_presentation
+    from subtitle_app.transcription.local_transcriber import configure_cuda_libraries
+    from subtitle_app.textbook.presentation_text import read_presentation
     from PyQt6.QtWidgets import QApplication
-    from qtTest.MyApp import MyApp
-    from qtTest.textbook_editor.auto_dialog import AutoTextbookDialog
-    from qtTest.textbook_editor.data import TextbookDocument
-    from textbook import Textbook
+    from subtitle_app.ui.main_window import MyApp
+    from subtitle_app.ui.textbook_editor.auto_dialog import AutoTextbookDialog
+    from subtitle_app.ui.textbook_editor.data import TextbookDocument
+    from subtitle_app.textbook.document import Textbook
 
     assert "int8" in ctranslate2.get_supported_compute_types("cpu")
     assert tokenizers.__version__
@@ -35,6 +35,8 @@ def check_runtime():
         ctypes.WinDLL(str(candidates[0]))
     app = QApplication([])
     window = MyApp()
+    assert window.STYLESHEET_PATH.is_file(), "Missing bundled UI stylesheet"
+    assert window.styleSheet(), "UI stylesheet was not loaded"
     window.open_textbook_editor()
     dialog = AutoTextbookDialog(TextbookDocument(Textbook([])), parent=window)
     dialog.show()

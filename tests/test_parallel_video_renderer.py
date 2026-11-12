@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from parallel_video_renderer import physical_core_count, subtitle_segments
+from subtitle_app.rendering.parallel_video_renderer import physical_core_count, subtitle_segments
 
 
 class SubtitlePartitionTests(unittest.TestCase):
@@ -69,10 +69,10 @@ class SubtitlePartitionTests(unittest.TestCase):
         self.assertGreaterEqual(count, 1)
 
     def test_unknown_core_count_uses_one_without_logical_estimate(self):
-        with patch("parallel_video_renderer.os.name", "posix"), \
-             patch("parallel_video_renderer.Path") as path, \
-             patch("parallel_video_renderer.subprocess.run", side_effect=OSError), \
-             patch("parallel_video_renderer.os.cpu_count") as logical:
+        with patch("subtitle_app.rendering.parallel_video_renderer.os.name", "posix"), \
+             patch("subtitle_app.rendering.parallel_video_renderer.Path") as path, \
+             patch("subtitle_app.rendering.parallel_video_renderer.subprocess.run", side_effect=OSError), \
+             patch("subtitle_app.rendering.parallel_video_renderer.os.cpu_count") as logical:
             path.return_value.is_dir.return_value = False
             self.assertEqual(physical_core_count(), 1)
             logical.assert_not_called()

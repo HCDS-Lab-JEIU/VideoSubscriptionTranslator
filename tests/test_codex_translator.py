@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from codex_translator import CodexSubtitleTranslator, check_codex_login, codex_command
-from subtitle_translator import SubtitleTranslationError, SubtitleTranslator
-from transcript_reader import TranscriptReader
+from subtitle_app.translation.codex_translator import CodexSubtitleTranslator, check_codex_login, codex_command
+from subtitle_app.translation.subtitle_translator import SubtitleTranslationError, SubtitleTranslator
+from subtitle_app.subtitles.transcript_reader import TranscriptReader
 
 
 class CodexTranslatorTests(unittest.TestCase):
@@ -26,14 +26,14 @@ class CodexTranslatorTests(unittest.TestCase):
         self.source.write_text("[00:00:01.000, 00:00:02.000] 전압입니다.\n"
                                "[00:00:02.000, 00:00:04.000] 저항입니다.\n", encoding="utf-8")
         self.addCleanup(patch.stopall)
-        patch("codex_models.list_codex_models", return_value=[{
+        patch("subtitle_app.translation.codex_models.list_codex_models", return_value=[{
             "model": "chosen-model", "isDefault": True, "defaultReasoningEffort": "medium",
             "supportedReasoningEfforts": [{"reasoningEffort": "medium"}, {"reasoningEffort": "high"}],
         }]).start()
         self.translator = CodexSubtitleTranslator(self.book)
-        patch("codex_translator.check_codex_login", return_value=["fake-codex.exe"]).start()
-        self.api = patch("subtitle_translator.OpenAI", side_effect=AssertionError("No API allowed")).start()
-        self.key = patch("subtitle_translator.load_api_key", side_effect=AssertionError("No key needed")).start()
+        patch("subtitle_app.translation.codex_translator.check_codex_login", return_value=["fake-codex.exe"]).start()
+        self.api = patch("subtitle_app.translation.subtitle_translator.OpenAI", side_effect=AssertionError("No API allowed")).start()
+        self.key = patch("subtitle_app.translation.subtitle_translator.load_api_key", side_effect=AssertionError("No key needed")).start()
 
     @staticmethod
     def reply(args, **kwargs):
@@ -44,7 +44,7 @@ class CodexTranslatorTests(unittest.TestCase):
 
     def test_transport_preserves_timestamps_and_uses_stdin_and_saved_login(self):
         with patch.dict("os.environ", {"OPENAI_API_KEY": "private-key", "CODEX_API_KEY": "private-key"}), \
-             patch("codex_translator.subprocess.run", side_effect=self.reply) as run:
+             patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply) as run:
             output = self.translator.translate(self.source)
         self.assertEqual(output.read_text(encoding="utf-8"),
                          "[00:00:01.000, 00:00:02.000] English 0\n[00:00:02.000, 00:00:04.000] English 1\n")
@@ -66,7 +66,7 @@ class CodexTranslatorTests(unittest.TestCase):
 
     def test_requested_model_is_passed_exactly_and_changes_checkpoint_identity(self):
         self.translator = CodexSubtitleTranslator(self.book, model="chosen-model")
-        with patch("codex_translator.subprocess.run", side_effect=self.reply) as run:
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply) as run:
             output = self.translator.translate(self.source)
         args = run.call_args.args[0]
         self.assertEqual(args[args.index("--model") + 1], "chosen-model")
@@ -75,7 +75,7 @@ class CodexTranslatorTests(unittest.TestCase):
 
     def test_explicit_reasoning_reaches_cli_and_checkpoint(self):
         translator = CodexSubtitleTranslator(self.book, model="chosen-model", reasoning="high")
-        with patch("codex_translator.subprocess.run", side_effect=self.reply) as run:
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply) as run:
             output = translator.translate(self.source)
         self.assertIn('model_reasoning_effort="high"', run.call_args.args[0])
         output.unlink()
@@ -83,13 +83,13 @@ class CodexTranslatorTests(unittest.TestCase):
             self.translator.translate(self.source)
 
     def test_timeout_is_actionable_and_creates_no_completed_output(self):
-        with patch("codex_translator.subprocess.run", side_effect=subprocess.TimeoutExpired("codex", 600)), \
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=subprocess.TimeoutExpired("codex", 600)), \
              self.assertRaisesRegex(SubtitleTranslationError, "대기 시간"):
             self.translator.translate(self.source)
         self.assertFalse((self.root / "lecture_en.txt").exists())
 
     def test_failed_cli_does_not_expose_raw_diagnostics(self):
-        with patch("codex_translator.subprocess.run", return_value=SimpleNamespace(
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", return_value=SimpleNamespace(
                 returncode=1, stderr=b"quota exceeded private-key private-lecture")), \
              self.assertRaises(SubtitleTranslationError) as caught:
             self.translator.translate(self.source)
@@ -97,13 +97,13 @@ class CodexTranslatorTests(unittest.TestCase):
         self.assertNotIn("private", str(caught.exception))
 
     def test_missing_and_malformed_response_are_rejected(self):
-        with patch("codex_translator.subprocess.run", return_value=SimpleNamespace(returncode=0)), \
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", return_value=SimpleNamespace(returncode=0)), \
              self.assertRaisesRegex(SubtitleTranslationError, "최종 번역"):
             self.translator.translate(self.source)
         def malformed(args, **kwargs):
             Path(args[args.index("--output-last-message") + 1]).write_text("not JSON")
             return SimpleNamespace(returncode=0)
-        with patch("codex_translator.subprocess.run", side_effect=malformed), \
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=malformed), \
              self.assertRaisesRegex(SubtitleTranslationError, "JSON"):
             self.translator.translate(self.source)
 
@@ -112,7 +112,7 @@ class CodexTranslatorTests(unittest.TestCase):
             def respond(args, **kwargs):
                 Path(args[args.index("--output-last-message") + 1]).write_text(json.dumps(response))
                 return SimpleNamespace(returncode=0)
-            with self.subTest(response=response), patch("codex_translator.subprocess.run", side_effect=respond), \
+            with self.subTest(response=response), patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=respond), \
                  self.assertRaises(SubtitleTranslationError):
                 self.translator.translate(self.source)
 
@@ -141,7 +141,7 @@ class CodexTranslatorTests(unittest.TestCase):
              self.assertRaises(SubtitleTranslationError):
             self.translator.translate(self.source)
         # Complete Codex translation, then remove only final output to exercise checkpoint comparison.
-        with patch("codex_translator.subprocess.run", side_effect=self.reply):
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply):
             output = self.translator.translate(self.source)
         output.unlink()
         api = SubtitleTranslator(self.root / "missing-key", self.book)
@@ -150,14 +150,14 @@ class CodexTranslatorTests(unittest.TestCase):
 
     def test_context_is_included_without_timestamp_rewrites(self):
         lines = TranscriptReader().read(self.source)
-        with patch("codex_translator.subprocess.run", side_effect=self.reply) as run:
+        with patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply) as run:
             self.translator._request_translations(["fake.exe"], "Translate", lines, [1])
         prompt = run.call_args.kwargs["input"].decode("utf-8")
         self.assertIn('"context_before": ["전압입니다."]', prompt)
 
     def test_login_failure_does_not_echo_diagnostics(self):
-        with patch("codex_translator.codex_command", return_value=["fake.exe"]), \
-             patch("codex_translator.subprocess.run", return_value=SimpleNamespace(returncode=1)), \
+        with patch("subtitle_app.translation.codex_translator.codex_command", return_value=["fake.exe"]), \
+             patch("subtitle_app.translation.codex_translator.subprocess.run", return_value=SimpleNamespace(returncode=1)), \
              self.assertRaisesRegex(SubtitleTranslationError, "로그인"):
             check_codex_login()
 
@@ -171,5 +171,5 @@ class CodexTranslatorTests(unittest.TestCase):
         spec.loader.exec_module(cli)
         with patch("sys.argv", ["__main__.py", str(self.source), "--translate", "--translation-backend", "codex",
                                 "--textbook-file", str(self.book), "--api-key-file", str(self.root / "missing-key")]), \
-             patch("codex_translator.subprocess.run", side_effect=self.reply):
+             patch("subtitle_app.translation.codex_translator.subprocess.run", side_effect=self.reply):
             self.assertEqual(cli.main(), 0)

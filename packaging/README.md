@@ -8,7 +8,7 @@ Miniconda `translator` 환경에서 프로젝트 루트 기준으로 실행합�
 ```
 
 출력은 `packaging/dist/VideoSubtitleTranslator/`와 `packaging/VideoSubtitleTranslator-v2026.11.12-windows-x64.zip`입니다.
-파일명 버전은 `app_version.py`에서 읽으며 SHA-256은 `packaging/SHA256SUMS.txt`에 기록합니다.
+파일명 버전은 `subtitle_app/common/app_version.py`에서 읽으며 SHA-256은 `packaging/SHA256SUMS.txt`에 기록합니다.
 GUI·CLI EXE, Python 런타임, Qt, FFmpeg, faster-whisper, CTranslate2, CUDA DLL,
 스타일, 예제 텍스트북, README와 화면별 HTML 사용법을 포함합니다.
 Codex CLI·인증, Whisper 모델 가중치, NVIDIA 드라이버와 PowerPoint는 포함하지 않습니다.

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from recovery_report import RecoveryReportWriter
+from subtitle_app.transcription.recovery_report import RecoveryReportWriter
 
 
 class RecoveryReportTests(unittest.TestCase):
@@ -22,7 +22,7 @@ class RecoveryReportTests(unittest.TestCase):
             if len(calls) == 1:
                 raise PermissionError(13, "locked")
             return replace(source, target)
-        with patch.object(Path, "replace", locked_once), patch("recovery_report.time.sleep"):
+        with patch.object(Path, "replace", locked_once), patch("subtitle_app.transcription.recovery_report.time.sleep"):
             self.writer([{"status": "recovered"}])
         self.assertEqual(len(calls), 2)
         self.assertEqual(self.writer.latest_path, self.path)
@@ -32,7 +32,7 @@ class RecoveryReportTests(unittest.TestCase):
     def test_persistent_lock_keeps_old_report_and_new_snapshots(self):
         self.path.write_text('{"events": []}', encoding="utf-8")
         with patch.object(Path, "replace", side_effect=PermissionError(13, "locked")) as replace, \
-             patch("recovery_report.time.sleep"):
+             patch("subtitle_app.transcription.recovery_report.time.sleep"):
             first = self.writer([{"status": "retry"}])
             second = self.writer([{"status": "recovered"}])
         self.assertEqual(replace.call_count, 4)

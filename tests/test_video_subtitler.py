@@ -9,8 +9,8 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from ffmpeg_tools import get_ffmpeg_executable
-from video_subtitler import VideoSubtitler, VideoSubtitleError
+from subtitle_app.media.ffmpeg_tools import get_ffmpeg_executable
+from subtitle_app.rendering.video_subtitler import VideoSubtitler, VideoSubtitleError
 
 
 class VideoSubtitlerTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class VideoSubtitlerTests(unittest.TestCase):
         parallel = self.root / "parallel.mp4"
         with contextlib.redirect_stdout(io.StringIO()):
             VideoSubtitler().render(self.video, self.srt, serial)
-            with patch("parallel_video_renderer.physical_core_count", return_value=2):
+            with patch("subtitle_app.rendering.parallel_video_renderer.physical_core_count", return_value=2):
                 VideoSubtitler().render(self.video, self.srt, parallel, parallel=True)
         return serial, parallel
 
@@ -92,7 +92,7 @@ class VideoSubtitlerTests(unittest.TestCase):
             for i in range(6)), encoding="utf-8")
         output = self.root / "parallel.mp4"
         log = io.StringIO()
-        with patch("parallel_video_renderer.physical_core_count", return_value=6), \
+        with patch("subtitle_app.rendering.parallel_video_renderer.physical_core_count", return_value=6), \
              contextlib.redirect_stdout(log):
             VideoSubtitler().render(self.video, self.srt, output, parallel=True)
         self.assertIn("자막 기준 6개 연속 구간", log.getvalue())
@@ -115,7 +115,7 @@ class VideoSubtitlerTests(unittest.TestCase):
                 "-vf", "select='if(lt(t,3),1,not(mod(n,2)))'", "-fps_mode", "vfr",
                 "-c:v", "libx264", self.video)
         parallel = self.root / "parallel.mp4"
-        with patch("parallel_video_renderer.physical_core_count", return_value=2), \
+        with patch("subtitle_app.rendering.parallel_video_renderer.physical_core_count", return_value=2), \
              contextlib.redirect_stdout(io.StringIO()):
             VideoSubtitler().render(self.video, self.srt, parallel, parallel=True)
 
@@ -142,7 +142,7 @@ class VideoSubtitlerTests(unittest.TestCase):
         self.make_video()
         output = self.root / "result.mp4"
         self.srt.write_text("invalid subtitle", encoding="utf-8")
-        with patch("parallel_video_renderer.physical_core_count", return_value=2), \
+        with patch("subtitle_app.rendering.parallel_video_renderer.physical_core_count", return_value=2), \
              contextlib.redirect_stdout(io.StringIO()), self.assertRaises(VideoSubtitleError):
             VideoSubtitler().render(self.video, self.srt, output, parallel=True)
         self.assertFalse(output.exists())

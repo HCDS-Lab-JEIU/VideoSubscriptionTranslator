@@ -11,9 +11,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication, QLineEdit, QMessageBox
 
-from textbook import Textbook
-from qtTest.textbook_editor.data import TextbookRepository
-from qtTest.textbook_editor.editor import TextbookEditor
+from subtitle_app.textbook.document import Textbook
+from subtitle_app.ui.textbook_editor.data import TextbookRepository
+from subtitle_app.ui.textbook_editor.editor import TextbookEditor
 
 
 SOURCE = ("[Common Rules]\nCommon\n[Whisper Rules]\nWhisper\n"
@@ -63,7 +63,7 @@ class EditorTests(unittest.TestCase):
     def test_atomic_replace_failure_preserves_file(self):
         document = self.repository.load()
         document.courses[0].rows[0][1] = "edited"
-        with patch("qtTest.textbook_editor.data.os.replace", side_effect=OSError("locked")):
+        with patch("subtitle_app.ui.textbook_editor.data.os.replace", side_effect=OSError("locked")):
             with self.assertRaises(OSError):
                 self.repository.save(document)
         self.assertEqual(self.path.read_text(encoding="utf-8"), SOURCE)
@@ -87,7 +87,7 @@ class EditorTests(unittest.TestCase):
         self.app.processEvents()
         model = widget.model
         model.setData(model.index(0, 1), "edited voltage")
-        with patch("qtTest.textbook_editor.editor.QInputDialog.getText", return_value=("프로그래밍", True)):
+        with patch("subtitle_app.ui.textbook_editor.editor.QInputDialog.getText", return_value=("프로그래밍", True)):
             widget.add_course_button.click()
         model.setData(model.index(0, 0), "반복문")
         model.setData(model.index(0, 1), "loop")
@@ -121,13 +121,13 @@ class EditorTests(unittest.TestCase):
         self.assertTrue(widget.save())
         self.assertEqual(Textbook.load(self.path).terminology["전압"], "active edit")
         widget.model.setData(widget.model.index(0, 1), "unsaved")
-        with patch("qtTest.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel):
+        with patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel):
             self.assertFalse(widget.confirm_close())
 
     def test_open_and_edit_all_rules(self):
         widget = TextbookEditor()
         self.addCleanup(widget.close)
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(self.path), "")):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(self.path), "")):
             self.assertTrue(widget.open_file())
         self.assertFalse(widget.document.dirty)
         for name, editor in widget.rule_editors.items():
@@ -145,18 +145,18 @@ class EditorTests(unittest.TestCase):
         original = widget.document
         other = self.path.parent / "other.txt"
         other.write_text(SOURCE.replace("\nCommon\n", "\nNew common\n"), encoding="utf-8")
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
-             patch("qtTest.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
+             patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Cancel):
             self.assertFalse(widget.open_file())
         self.assertIs(widget.document, original)
         other.write_text("invalid file", encoding="utf-8")
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
-             patch("qtTest.textbook_editor.editor.QMessageBox.warning"):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
+             patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.warning"):
             self.assertFalse(widget.open_file())
         self.assertIs(widget.document, original)
         other.write_text(SOURCE, encoding="utf-8")
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
-             patch("qtTest.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Discard):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(other), "")), \
+             patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Discard):
             self.assertTrue(widget.open_file())
         self.assertEqual(widget.rule_editors["common_rules"].toPlainText(), "Common")
         self.assertFalse(widget.document.dirty)
@@ -166,21 +166,21 @@ class EditorTests(unittest.TestCase):
         widget = TextbookEditor(self.repository)
         self.addCleanup(widget.close)
         widget.rule_editors["common_rules"].setPlainText("Saved before open")
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(self.path), "")), \
-             patch("qtTest.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Save):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getOpenFileName", return_value=(str(self.path), "")), \
+             patch("subtitle_app.ui.textbook_editor.editor.QMessageBox.question", return_value=QMessageBox.StandardButton.Save):
             self.assertTrue(widget.open_file())
         self.assertEqual(widget.rule_editors["common_rules"].toPlainText(), "Saved before open")
 
     def test_new_document_uses_save_dialog(self):
         widget = TextbookEditor()
         self.addCleanup(widget.close)
-        with patch("qtTest.textbook_editor.editor.QInputDialog.getText", return_value=("새 과목", True)):
+        with patch("subtitle_app.ui.textbook_editor.editor.QInputDialog.getText", return_value=("새 과목", True)):
             widget.add_course_button.click()
         widget.model.setData(widget.model.index(0, 0), "단어")
         widget.model.setData(widget.model.index(0, 1), "term")
         widget.rule_editors["translation_rules"].setPlainText("Translate")
         target = self.path.parent / "new.txt"
-        with patch("qtTest.textbook_editor.editor.QFileDialog.getSaveFileName", return_value=(str(target), "")):
+        with patch("subtitle_app.ui.textbook_editor.editor.QFileDialog.getSaveFileName", return_value=(str(target), "")):
             self.assertTrue(widget.save())
         self.assertEqual(Textbook.load(target).translation_rules, "Translate")
         self.assertEqual(widget.repository.path, target)
