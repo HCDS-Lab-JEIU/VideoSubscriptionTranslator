@@ -1,0 +1,13 @@
+#!/bin/sh
+# Keep the experimental directory out of other branches, even after git add -f.
+branch=$(git symbolic-ref --quiet --short HEAD) || branch="(detached HEAD)"
+if [ "$branch" = "experimental" ]; then
+    exit 0
+fi
+
+files=$(git ls-files --cached -- experimentals) || exit 1
+if [ -n "$files" ]; then
+    echo "Blocked: experimentals/ may only be committed on the experimental branch." >&2
+    echo "Current branch: $branch. Switch to experimental before committing experiments." >&2
+    exit 1
+fi

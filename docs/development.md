@@ -467,3 +467,29 @@ GUI는 `-m subtitle_app.ui.app`, CLI는 `-m subtitle_app`, 텍스트북 편집�
 | `test_entry_points.py` | 새 패키지와 기존 실행 명령, 사용자 파일의 기본 경로 유지 |
 
 이 테스트만으로 실제 음성 인식·번역 품질이나 FFmpeg의 최종 영상 결과까지 확인되는 것은 아닙니다. 해당 부분을 수정했다면 짧은 샘플 영상으로 관련 단계를 실행해 결과도 확인하세요.
+
+## 11. 실험용 브랜치와 폴더
+
+실험 파일은 프로젝트 루트의 `experimentals/`에 두고 **`experimental` 브랜치에서만 추적·푸시**합니다. `main`에서는 이 폴더를 `.gitignore`로 제외합니다. Git은 폴더마다 자동으로 다른 브랜치에 올리지 않으므로 작업 전에 브랜치를 전환하세요.
+
+```powershell
+git switch experimental
+# experimentals/ 안에서 실험 파일 작성
+git add experimentals
+git commit -m "Add experiment"
+git push origin experimental
+```
+
+실험 작업을 커밋한 뒤 `git switch main`으로 제품 개발에 돌아갑니다. 브랜치를 바꾸면 추적 중인 실험 파일도 해당 브랜치에 맞춰 나타나거나 사라집니다. 커밋하지 않은 파일을 따로 보관하는 기능은 아닙니다.
+
+이 저장소에는 `.githooks/pre-commit`과 `.githooks/pre-push`가 있습니다. 현재 작업 폴더에는 활성화되어 있으며 **새로 clone한 PC에서는 한 번 설정**해야 합니다.
+
+```powershell
+git config --local core.hooksPath .githooks
+```
+
+- 커밋 검사: `experimental` 이외의 브랜치에서 `experimentals/`가 포함된 커밋을 차단합니다. `git add -f`로 추가해도 검사합니다.
+- 푸시 검사: 실험 파일을 포함한 커밋 이력이 원격 `experimental` 이외의 브랜치나 태그로 올라가는 것을 차단합니다. 잘못된 대상 브랜치 지정이나 이후 커밋에서 파일을 지운 경우도 검사합니다.
+- `experimental` 전체를 `main`으로 합치지 마세요. 제품에 반영할 일반 코드 변경은 실험 파일과 별도 커밋으로 만들고 필요한 커밋만 가져오세요.
+
+이 검사는 **이 PC의 로컬 Git 훅**이며 GitHub 서버 정책은 아닙니다. 훅을 비활성화하거나 다른 클라이언트에서 우회하면 적용되지 않습니다. API 키·영상·모델 등 기존 `.gitignore` 제외 규칙은 실험 브랜치에서도 유지됩니다.
