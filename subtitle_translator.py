@@ -91,6 +91,11 @@ class SubtitleTranslator:
             raise SubtitleTranslationError("번역 응답의 텍스트 형식이 올바르지 않습니다.")
         return {key: " ".join(batch[key].split()) for key in expected_ids}
 
+    def _client_context(self):
+        api_key = load_api_key(self.api_key_path)
+        return OpenAI(api_key=api_key, base_url="https://api.openai.com/v1",
+                      timeout=600.0, max_retries=0)
+
     def translate(self, file_path: str | Path, output_path: str | Path | None = None) -> Path:
         source = Path(file_path).expanduser().resolve()
         destination = Path(output_path).expanduser().resolve() if output_path else self._output_path(source)
@@ -139,10 +144,8 @@ class SubtitleTranslator:
                 raise ValueError("번역 진행 파일의 대기 구간 번호 또는 텍스트가 유효하지 않습니다.")
         destination.parent.mkdir(parents=True, exist_ok=True)
         if len(saved) < len(lines):
-            api_key = load_api_key(self.api_key_path)
             try:
-                with OpenAI(api_key=api_key, base_url="https://api.openai.com/v1",
-                            timeout=600.0, max_retries=0) as client:
+                with self._client_context() as client:
                     for start in range(len(saved), len(lines), self.BATCH_SIZE):
                         end = min(start + self.BATCH_SIZE, len(lines))
                         expected_ids = [str(index) for index in range(start, end)]

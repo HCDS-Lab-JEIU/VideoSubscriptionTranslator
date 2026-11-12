@@ -43,6 +43,38 @@ class TextbookDocument:
         self.dirty = True
         return len(self.courses) - 1
 
+    def add_generated_terms(self, name, rows):
+        """Validate everything before merging; never overwrite existing translations."""
+        name = name.strip()
+        self._validate_line(name, "과목명")
+        index = next((i for i, course in enumerate(self.courses)
+                      if course.name.casefold() == name.casefold()), None)
+        old_rows = self.courses[index].rows if index is not None else []
+        terms = {ko.strip(): en.strip() for ko, en in old_rows if ko.strip()}
+        additions = []
+        for ko, en in rows:
+            ko, en = ko.strip(), en.strip()
+            self._validate_line(ko, "한글명")
+            self._validate_line(en, "영어명")
+            if "=" in ko:
+                raise ValueError("한글명에는 '='를 사용할 수 없습니다.")
+            if ko in terms:
+                if terms[ko] != en:
+                    raise ValueError(f"'{ko}'의 기존 영어명과 충돌합니다.")
+                continue
+            terms[ko] = en
+            additions.append([ko, en])
+        if not additions:
+            raise ValueError("추가할 새 단어가 없습니다.")
+        merged = [row[:] for row in old_rows if any(value.strip() for value in row)] + additions
+        if index is None:
+            index = len(self.courses)
+            self.courses.append(CourseDraft(name, merged))
+        else:
+            self.courses[index].rows = merged
+        self.dirty = True
+        return index, len(additions)
+
     @staticmethod
     def _validate_line(value: str, label: str) -> None:
         if not value or len(value.splitlines()) != 1 or value.startswith("#") or (

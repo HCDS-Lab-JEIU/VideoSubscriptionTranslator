@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Subtitle Translator — 화면별 사용법</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f1f4f8; color: #172638; font: 16px/1.7 "Malgun Gothic", sans-serif; }
+    header, main, footer { max-width: 1560px; margin: auto; padding: 28px; }
+    header { padding-bottom: 8px; }
+    h1 { margin: 0; font-size: 30px; }
+    h2 { margin-top: 0; font-size: 24px; }
+    nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 18px 0; }
+    nav a, .download { padding: 8px 14px; background: white; border: 1px solid #ccd6e0; border-radius: 7px; }
+    a { color: #154c91; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+    section { margin-bottom: 32px; padding: 24px; background: white; border: 1px solid #dce3eb; border-radius: 12px; }
+    figure { margin: 20px 0; }
+    img { display: block; width: 100%; height: auto; border: 1px solid #e2e7ee; }
+    figcaption, footer { color: #526378; font-size: 14px; }
+    li { margin: 6px 0; }
+    .note { padding: 12px 16px; background: #f6f8fb; border-left: 4px solid #df3030; }
+    details { margin-top: 18px; }
+    summary { cursor: pointer; color: #154c91; }
+    .flow { font-weight: bold; }
+    @media print { body { background: white; } nav, details, .download { display: none; } section { break-before: page; border: 0; padding: 0; } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Video Subtitle Translator · 화면별 사용법</h1>
+  <p>붉은 테두리는 조작 영역, 화살표 옆 글씨는 기능명입니다. 이미지를 클릭하면 원본 크기로 열립니다.</p>
+  <nav><a href="#main">① 메인 화면</a><a href="#editor">② 텍스트북 편집기</a><a href="#auto">③ Auto 다이얼로그</a></nav>
+  <p class="note">2026-11-12 소스 버전의 실제 Qt 화면을 예시 자료로 캡처했습니다. 화면의 진행 상태·생성 결과·모델 선택은 사용법 설명용 예시입니다. 주석 이미지는 Imagegen으로 제작했으며, 비교용 원본 캡처도 함께 제공합니다.</p>
+</header>
+<main>
+  <section id="main">
+    <h2>① 메인 화면</h2>
+    <p class="flow">영상 선택 → 텍스트북 불러오기 → 과목 선택 → 전사·번역 방식 설정 → 파이프라인 실행</p>
+    <figure><a href="01-main-annotated.png"><img src="01-main-annotated.png" alt="메인 화면의 영상, 파형, 재생 버튼, 진행 콘솔, 설정과 실행 버튼을 붉은 박스와 화살표로 설명"></a><figcaption>전체 안내 이미지 · <a href="01-main-annotated.png" download>PNG 저장</a></figcaption></figure>
+    <ol>
+      <li>오른쪽에서 영상, 텍스트북 파일과 사용할 과목을 선택합니다.</li>
+      <li>전사는 OpenAI API 또는 로컬 Whisper, 번역은 OpenAI API 또는 Codex CLI를 선택합니다. Codex는 모델과 추론 수준도 선택합니다.</li>
+      <li>API를 사용하는 경우 키 파일을 지정합니다. 저장 위치와 병렬 렌더링 옵션을 확인한 뒤 <strong>파이프라인 실행</strong>을 누릅니다.</li>
+      <li>진행 상태는 왼쪽 아래 콘솔에서 확인합니다. SRT 생성 후에는 인코딩 중에도 미리보기 자막을 볼 수 있습니다.</li>
+      <li>파형 클릭·드래그로 구간을 이동하고, <strong>미리보기 자막</strong> 체크박스로 표시를 켜고 끕니다. 완료 후 <strong>결과 폴더 열기</strong>에서 SRT와 MP4를 확인합니다.</li>
+    </ol>
+    <p>영상/콘솔과 설정창 사이의 경계선을 드래그하면 영역 크기를 조절할 수 있습니다. 텍스트북 편집기는 <strong>Tools → 텍스트북 편집기</strong> 또는 <strong>Ctrl+Shift+T</strong>로 엽니다.</p>
+    <details><summary>주석 없는 실제 캡처 보기</summary><a href="raw/01-main.png"><img src="raw/01-main.png" alt="메인 화면 원본 캡처"></a></details>
+  </section>
+  <section id="editor">
+    <h2>② 텍스트북 편집기</h2>
+    <p class="flow">Open → 규칙·과목·단어 편집 → Save</p>
+    <figure><a href="02-textbook-annotated.png"><img src="02-textbook-annotated.png" alt="텍스트북 편집기의 Open Auto Save 버튼, 규칙, 과목 및 단어장 편집 영역 설명"></a><figcaption>전체 안내 이미지 · <a href="02-textbook-annotated.png" download>PNG 저장</a></figcaption></figure>
+    <ol>
+      <li><strong>Open</strong>으로 텍스트북 TXT를 엽니다. 새 파일은 규칙·과목·단어를 작성한 후 Save에서 저장 위치를 지정합니다.</li>
+      <li><strong>공통 룰</strong>은 공통 지침, <strong>Whisper 룰</strong>은 전사 지침, <strong>Translation 룰</strong>은 번역 지침입니다.</li>
+      <li>과목을 선택하거나 <strong>+</strong>로 새 과목을 추가합니다. 단어 셀을 더블클릭해 한글명과 영어명을 수정합니다.</li>
+      <li><strong>단어 추가</strong>로 행을 만들고, 행을 선택한 뒤 <strong>선택 단어 삭제</strong>로 제거합니다.</li>
+      <li><strong>Auto</strong>는 PPT 자동 단어장 생성 창을 엽니다. 직접 편집하거나 Auto로 추가한 내용은 <strong>Save</strong>로 저장해야 파일에 반영됩니다.</li>
+    </ol>
+    <details><summary>주석 없는 실제 캡처 보기</summary><a href="raw/02-textbook.png"><img src="raw/02-textbook.png" alt="텍스트북 편집기 원본 캡처"></a></details>
+  </section>
+  <section id="auto">
+    <h2>③ Auto · PPT 단어장 생성</h2>
+    <p class="flow">PPT 추가 → 과목·생성 방식 선택 → 생성 → 검토·수정 → 편집기에 추가 → Save</p>
+    <figure><a href="03-auto-annotated.png"><img src="03-auto-annotated.png" alt="Auto 다이얼로그의 복수 PPT 입력, 생성 서비스, 후보 검토와 편집기 추가 기능 설명"></a><figcaption>전체 안내 이미지 · <a href="03-auto-annotated.png" download>PNG 저장</a></figcaption></figure>
+    <ol>
+      <li>PPT/PPTX 여러 개를 목록으로 드래그하거나 <strong>Open · PPT 파일 추가</strong>로 선택합니다. 불필요한 파일은 선택 후 제거합니다.</li>
+      <li>기존 과목을 선택하거나 새 과목명을 입력합니다. 선택한 파일들은 한 과목의 단어장으로 모입니다.</li>
+      <li><strong>OpenAI API</strong>는 API 키 파일을 지정하고, <strong>Codex CLI</strong>는 로그인 계정의 모델과 추론 수준을 선택합니다.</li>
+      <li><strong>단어장 생성</strong>을 누르고 진행 로그를 확인합니다. 현재 규칙·기존 단어를 참고해 후보를 생성합니다.</li>
+      <li>후보의 한글명·영어명을 수정하고 필요한 단어만 체크합니다. 출처는 오른쪽 열에서 확인하며, 긴 내용은 마우스를 올려 봅니다. 기존 단어와 충돌 후보는 기본 선택에서 제외됩니다.</li>
+      <li><strong>선택 단어를 편집기에 추가</strong>를 누른 뒤, 편집기로 돌아가 <strong>Save</strong>로 저장합니다. Auto 창의 추가 버튼 자체는 파일을 저장하지 않습니다.</li>
+    </ol>
+    <p class="note">PPTX는 직접 읽으며 구형 PPT에는 설치된 PowerPoint가 필요합니다. 이미지 속 글자(OCR)와 발표자 노트는 추출하지 않습니다. 생성 시 추출 텍스트와 규칙·기존 단어를 선택한 서비스에 전송하며, API 요금 또는 Codex 계정의 사용 한도가 적용됩니다.</p>
+    <details><summary>주석 없는 실제 캡처 보기</summary><a href="raw/03-auto.png"><img src="raw/03-auto.png" alt="Auto 다이얼로그 원본 캡처"></a></details>
+  </section>
+</main>
+<footer>캡처 재생성: <code>docs/capture_user_guide.py</code> · 주석 제작: built-in Imagegen · <a href="annotation-prompts.json">사용한 프롬프트</a> · <a href="example-textbook.txt">예제 텍스트북</a></footer>
+</body>
+</html>

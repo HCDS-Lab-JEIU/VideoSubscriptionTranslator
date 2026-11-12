@@ -1,0 +1,4 @@
+# Optional local transcription; existing API-only installs do not need this file.
+faster-whisper>=1.2,<2
+ctranslate2>=4.5,<5
+# GPU additionally requires CUDA 12 cuBLAS and cuDNN 9 on PATH; see README.

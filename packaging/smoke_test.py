@@ -28,7 +28,12 @@ def check_bundle(bundle: Path) -> None:
             raise RuntimeError(f"{args[0]} failed: {result.stdout}\n{result.stderr}")
         return result.stdout
 
-    assert "--parallel-render" in run(cli, "--help")
+    help_text = run(cli, "--help")
+    for flag in ("--parallel-render", "--transcription-backend", "--translation-backend", "--codex-reasoning"):
+        assert flag in help_text
+    assert (bundle / "VERSION.txt").read_text(encoding="utf-8-sig").strip() in run(cli, "--version")
+    assert '"cuda_dlls": true' in run(cli, "--runtime-checks")
+    assert (bundle / "docs/user-guide/index.html").is_file()
     assert "Circuits" in run(cli, "--list-courses")
     ffmpeg, = (bundle / "_internal" / "imageio_ffmpeg" / "binaries").glob("*.exe")
     with tempfile.TemporaryDirectory(prefix="자막 앱 검증 ") as directory:
@@ -65,7 +70,7 @@ def check_bundle(bundle: Path) -> None:
         assert "자막 1~" in log
         assert parallel_output.stat().st_size > 0
     run(bundle / "VideoSubtitleTranslator.exe", "--smoke-test")
-    print("PASS: bundled CLI, textbook, FFmpeg serial/parallel render and GUI startup")
+    print("PASS: bundled CLI, local CPU/VAD/CUDA runtime, PPT Auto UI, subtitle preview, textbook, FFmpeg serial/parallel render and GUI startup")
 
 
 if __name__ == "__main__":

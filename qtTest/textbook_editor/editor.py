@@ -3,7 +3,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QComboBox, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog,
+    QAbstractItemView, QComboBox, QDialog, QFileDialog, QHBoxLayout, QHeaderView, QInputDialog,
     QLabel, QLineEdit, QMainWindow, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
     QTableView, QVBoxLayout, QWidget,
 )
@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
 from textbook import Textbook
 from .data import TextbookDocument, TextbookRepository
 from .model import TerminologyTableModel
+from .auto_dialog import AutoTextbookDialog
 
 
 class TextbookEditor(QWidget):
@@ -19,15 +20,19 @@ class TextbookEditor(QWidget):
         self.repository = repository
         self.document = repository.load() if repository else TextbookDocument(Textbook([]))
         self.model = TerminologyTableModel(self.document, self)
+        self._auto_dialog = None
 
         self.open_button = QPushButton("Open")
         self.path_display = QLineEdit(str(repository.path) if repository else "")
         self.path_display.setReadOnly(True)
         self.path_display.setPlaceholderText("텍스트북 파일을 열거나 새 내용을 작성하세요.")
         self.save_button = QPushButton("Save")
+        self.auto_button = QPushButton("Auto")
+        self.auto_button.setToolTip("여러 PPT에서 과목 단어장을 자동 생성합니다.")
         file_toolbar = QHBoxLayout()
         file_toolbar.addWidget(self.open_button)
         file_toolbar.addWidget(self.path_display, 1)
+        file_toolbar.addWidget(self.auto_button)
         file_toolbar.addWidget(self.save_button)
 
         self.sections = QSplitter(Qt.Orientation.Vertical)
@@ -101,6 +106,7 @@ class TextbookEditor(QWidget):
         layout.addWidget(self.status)
 
         self.open_button.clicked.connect(self.open_file)
+        self.auto_button.clicked.connect(self.open_auto)
         self.course_selector.currentIndexChanged.connect(self._select_course)
         self.add_course_button.clicked.connect(self._add_course)
         self.save_button.clicked.connect(self.save)
@@ -121,6 +127,31 @@ class TextbookEditor(QWidget):
     def _rule_changed(self, name):
         self.document.set_rule(name, self.rule_editors[name].toPlainText())
         self._show_dirty()
+
+    def open_auto(self):
+        self.auto_button.setFocus()
+        dialog = AutoTextbookDialog(self.document, self.course_selector.currentIndex(), self)
+        self._auto_dialog = dialog
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            self.model.beginResetModel()
+            try:
+                index, count = self.document.add_generated_terms(dialog.target_course, dialog.selected_terms)
+            finally:
+                self.model.endResetModel()
+            self.course_selector.blockSignals(True)
+            self.course_selector.clear()
+            self.course_selector.addItems([course.name for course in self.document.courses])
+            self.course_selector.setCurrentIndex(index)
+            self.course_selector.blockSignals(False)
+            self._select_course(index)
+            self.status.setText(f"Auto: '{self.document.courses[index].name}'에 {count}개 추가했습니다. Save로 저장하세요.")
+        except ValueError as exc:
+            QMessageBox.warning(self, "Auto 단어장 추가 실패", str(exc))
+        finally:
+            self._auto_dialog = None
+            dialog.deleteLater()
 
     def open_file(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -218,6 +249,9 @@ class TextbookEditor(QWidget):
         return True
 
     def confirm_close(self) -> bool:
+        if self._auto_dialog is not None and self._auto_dialog.busy:
+            self._auto_dialog.reject()
+            return False
         self.save_button.setFocus()
         if not self.document.dirty:
             return True

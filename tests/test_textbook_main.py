@@ -15,6 +15,9 @@ from qtTest.MyApp import MyApp
 class PlayerStub(QWidget):
     error_occurred = pyqtSignal(str)
 
+    def clear_subtitles(self):
+        pass
+
 
 class MainEditorTests(unittest.TestCase):
     @classmethod

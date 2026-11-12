@@ -82,6 +82,12 @@ QSplitter::handle:hover {
     background-color: #58a6ff;
 }
 
+QLabel#sectionTitle {
+    font-weight: 600;
+    color: #c9d1d9;
+    padding: 2px 0;
+}
+
 QPushButton:disabled,
 QComboBox:disabled {
     background-color: #161b22;

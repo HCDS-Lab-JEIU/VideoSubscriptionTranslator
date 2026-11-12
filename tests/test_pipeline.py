@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from media_file import MediaFile
 from pipeline import run_pipeline
+from pipeline_events import SUBTITLE_READY_PREFIX
 
 
 class PipelineTests(unittest.TestCase):
@@ -29,6 +30,7 @@ class PipelineTests(unittest.TestCase):
 
     def test_stage_handoff_srt_and_unique_runs(self):
         render_modes = []
+        logs = io.StringIO()
         def extract(extractor, video):
             self.assertEqual(video.file_path, self.video)
             path = extractor.output_dir / f"{video.file_path.stem}.mp3"
@@ -53,13 +55,20 @@ class PipelineTests(unittest.TestCase):
 
         def render(renderer, video, srt, output, *, parallel=False):
             render_modes.append(parallel)
+            # The complete file and flushed notification must exist before encoding.
+            import json
+            event = [line for line in logs.getvalue().splitlines()
+                     if line.startswith(SUBTITLE_READY_PREFIX)][-1]
+            self.assertEqual(json.loads(event.removeprefix(SUBTITLE_READY_PREFIX)),
+                             {"video": str(video.resolve()), "srt": str(srt.resolve())})
             self.assertEqual(video, self.video)
             self.assertEqual(srt.read_text(encoding="utf-8"),
                              "1\n00:00:00,000 --> 00:00:01,000\nVoltage\n\n")
             output.write_bytes(b"rendered")
             return output
 
-        with patch("pipeline.AudioExtractor.extract", autospec=True, side_effect=extract), \
+        with contextlib.redirect_stdout(logs), \
+             patch("pipeline.AudioExtractor.extract", autospec=True, side_effect=extract), \
              patch("pipeline.AudioTranscriber.transcribe", autospec=True, side_effect=transcribe), \
              patch("pipeline.SubtitleTranslator.translate", autospec=True, side_effect=translate), \
              patch("pipeline.VideoSubtitler.render", autospec=True, side_effect=render):
@@ -94,6 +103,18 @@ class PipelineTests(unittest.TestCase):
         translate.assert_not_called()
         render.assert_not_called()
 
+    def test_local_backend_routes_without_openai_transcription(self):
+        empty = self.root / "empty.txt"
+        empty.write_text("", encoding="utf-8")
+        with patch("pipeline.AudioExtractor.extract", return_value=MediaFile(self.video)), \
+             patch("pipeline.AudioTranscriber") as api, \
+             patch("pipeline.LocalTranscriber") as local:
+            local.return_value.transcribe.return_value = MediaFile(empty)
+            self.run_pipeline(transcription_backend="local", local_model="medium", local_device="cpu")
+        api.assert_not_called()
+        self.assertEqual(local.call_args.kwargs["model"], "medium")
+        self.assertEqual(local.call_args.kwargs["device"], "cpu")
+
     def test_missing_input_or_config_stops_before_extraction(self):
         with patch("pipeline.AudioExtractor.extract") as extract:
             self.key.unlink()
@@ -104,6 +125,32 @@ class PipelineTests(unittest.TestCase):
                 self.run_pipeline()
             extract.assert_not_called()
         self.assertFalse((self.root / "runs").exists())
+
+    def test_local_and_codex_pipeline_needs_no_api_key(self):
+        self.key.unlink()
+        transcript = self.root / "speech_kr.txt"
+        transcript.write_text("[00:00:00.000, 00:00:01.000] 전압\n", encoding="utf-8")
+        translated = self.root / "speech_en.txt"
+        translated.write_text("[00:00:00.000, 00:00:01.000] Voltage\n", encoding="utf-8")
+        with patch("pipeline.check_codex_login") as login, \
+             patch("pipeline.load_api_key") as key, \
+             patch("pipeline.AudioExtractor.extract", return_value=MediaFile(self.video)), \
+             patch("pipeline.LocalTranscriber.transcribe", return_value=MediaFile(transcript)), \
+             patch("pipeline.CodexSubtitleTranslator") as codex, \
+             patch("pipeline.SubtitleTranslator") as api, \
+             patch("pipeline.VideoSubtitler.render", return_value=self.root / "final.mp4"):
+            codex.return_value.translate.return_value = translated
+            self.run_pipeline(transcription_backend="local", translation_backend="codex", codex_model="chosen-model")
+        login.assert_called_once()
+        key.assert_not_called()
+        api.assert_not_called()
+        self.assertEqual(codex.call_args.kwargs["model"], "chosen-model")
+
+    def test_codex_login_failure_stops_before_extraction(self):
+        with patch("pipeline.check_codex_login", side_effect=RuntimeError("login required")), \
+             patch("pipeline.AudioExtractor.extract") as extract, self.assertRaisesRegex(RuntimeError, "login"):
+            self.run_pipeline(transcription_backend="local", translation_backend="codex")
+        extract.assert_not_called()
 
     def test_cli_defaults_to_pipeline_and_reports_failure(self):
         spec = importlib.util.spec_from_file_location("video_cli", Path(__file__).resolve().parents[1] / "__main__.py")

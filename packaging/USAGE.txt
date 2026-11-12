@@ -1,9 +1,26 @@
-Video Subtitle Translator — Windows x64
+Video Subtitle Translator — v2026.11.12 / Windows x64
 
 1. ZIP 전체를 쓰기 가능한 폴더에 압축 해제하세요. _internal 폴더도 필요합니다.
-2. secrets/openai_api_key.txt를 만들고 OpenAI API 키만 한 줄로 입력하세요.
+2. API 전사·번역·Auto를 사용하면 secrets/openai_api_key.txt에 API 키를 한 줄로 입력하세요.
 3. VideoSubtitleTranslator.exe를 실행하세요.
-4. 영상 선택 → 텍스트북 불러오기 → 과목 선택 → 파이프라인 실행.
+4. 영상 선택 → 텍스트북 불러오기 → 과목 선택 → 전사·번역 방식 선택 → 파이프라인 실행.
+
+Codex CLI 설치 (앱을 실행하는 Windows 사용자 계정의 PowerShell):
+  winget install --id OpenJS.NodeJS.LTS -e
+Node.js 설치 후 PowerShell을 새로 열고:
+  npm.cmd install -g @openai/codex@latest
+  codex.cmd login
+  codex.cmd login status
+브라우저 로그인을 마친 뒤 앱을 다시 실행하고 Codex 모델·추론 수준을 선택하세요.
+Codex CLI는 ZIP에 포함하지 않습니다. 상세 설치·문제 해결은 README.md를 참고하세요.
+
+로컬 Whisper + Codex CLI 조합에는 이 앱의 API 키 파일이 필요 없습니다.
+Whisper 모델은 첫 실행 시 다운로드하며, CPU/CUDA 실행 라이브러리는 ZIP에 포함됩니다.
+NVIDIA 드라이버는 별도 설치가 필요합니다. GPU 메모리 부족·CUDA 오류 시 CPU로 재시도합니다.
+
+왼쪽은 영상과 진행 콘솔, 오른쪽은 설정입니다. 경계선을 드래그해 크기를 조절하세요.
+SRT 생성 후 인코딩 중에도 미리보기 자막을 재생·탐색할 수 있습니다.
+최종 MP4에는 기존처럼 자막이 합성됩니다.
 
 영상 자막 합성 자막 기준 병렬 처리 체크: 전체 자막 개수를 연속 묶음으로 나누어
 물리 코어 수까지 동시 처리합니다. 자막 수가 적으면 작업 수도 줄어듭니다.
@@ -11,8 +28,13 @@ Video Subtitle Translator — Windows x64
 
 기본 텍스트북은 secrets/textbook.txt입니다. Tools → 텍스트북 편집기에서
 강의 용어와 번역 규칙을 수정하고 저장한 뒤 다시 불러오세요.
+편집기의 Auto에서 PPT/PPTX를 여러 개 추가하고 API 또는 Codex로 단어장을 생성합니다.
+후보를 검토해 편집기에 추가한 뒤 Save로 저장하세요. 구형 PPT에는 PowerPoint가 필요하며
+이미지 속 글자 OCR은 지원하지 않습니다.
+화면별 사용법: docs/user-guide/index.html을 브라우저로 여세요.
 결과는 output_runs에 저장되며 앱에서 저장 위치를 바꿀 수 있습니다.
-전사와 번역은 인터넷 연결과 유료 OpenAI API를 사용합니다.
+API에는 API 요금, Codex에는 로그인 계정의 사용 한도가 적용됩니다.
 Python과 FFmpeg를 별도로 설치할 필요가 없습니다.
 
 명령줄 도움말: .\VideoSubtitleTranslator-CLI.exe --help
+버전 확인: .\VideoSubtitleTranslator-CLI.exe --version

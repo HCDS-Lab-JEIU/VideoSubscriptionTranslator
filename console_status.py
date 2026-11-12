@@ -6,15 +6,15 @@ from time import monotonic
 
 
 @contextmanager
-def waiting_for_response():
+def waiting_for_response(provider="OpenAI"):
     stopped = Event()
     started_at = monotonic()
-    print("OpenAI 응답을 기다리는 중...", flush=True)
+    print(f"{provider} 응답을 기다리는 중...", flush=True)
 
     def report():
         while not stopped.wait(5):
             elapsed = int(monotonic() - started_at)
-            print(f"OpenAI 응답을 기다리는 중... ({elapsed}초 경과)", flush=True)
+            print(f"{provider} 응답을 기다리는 중... ({elapsed}초 경과)", flush=True)
 
     reporter = Thread(target=report, daemon=True)
     reporter.start()

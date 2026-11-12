@@ -1,0 +1,18 @@
+[Common Rules]
+전기 회로의 전문 용어와 단위를 일관되게 표기하세요.
+
+[Whisper Rules]
+전압, 전류, 저항 등 전문 용어의 표기를 확인하세요.
+
+[Translation Rules]
+한국어 강의를 자연스러운 영어로 번역하세요.
+수식·단위·전문 용어는 정확하게 유지하세요.
+
+[Course]
+전기 회로
+
+[Terminology]
+전압 = voltage
+전류 = current
+저항 = resistance
+옴의 법칙 = Ohm's law

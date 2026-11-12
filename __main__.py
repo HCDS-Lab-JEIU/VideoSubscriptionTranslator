@@ -6,22 +6,35 @@ import sys
 
 from audio_extractor import AudioExtractionError, AudioExtractor
 from app_paths import app_directory
+from app_version import __version__
 from media_file import MediaFile
 
 
 def main() -> int:
     project_dir = app_directory()
     parser = argparse.ArgumentParser(description="MP3 추출, 한국어 전사, 영어 자막 번역을 수행합니다.")
+    parser.add_argument("--version", action="version", version=f"Video Subtitle Translator {__version__}")
     parser.add_argument("filepath", type=Path, nargs="?", help="비디오/오디오 또는 한국어 자막 TXT 경로")
     action = parser.add_mutually_exclusive_group()
-    action.add_argument("--pipeline", action="store_true", help="전체 파이프라인 실행 (기본, 유료 API 호출)")
+    action.add_argument("--pipeline", action="store_true", help="선택한 전사·번역 방식으로 전체 파이프라인 실행 (기본)")
     action.add_argument("--extract", action="store_true", help="오디오 추출만 수행 (로컬 작업)")
-    action.add_argument("--transcribe", action="store_true", help="GPT API로 무음 경계별 한국어 전사 (유료 API 호출)")
-    action.add_argument("--translate", action="store_true", help="한국어 TXT를 영어 자막으로 번역 (유료 API 호출)")
+    action.add_argument("--transcribe", action="store_true", help="선택한 API 또는 로컬 모델로 한국어 전사")
+    action.add_argument("--translate", action="store_true", help="한국어 TXT를 선택한 방식으로 영어 번역")
     action.add_argument("--make-srt", action="store_true", help="자막 TXT를 SRT로 변환 (로컬 작업)")
     action.add_argument("--render", action="store_true", help="원본 영상에 영어 자막을 합성한 MP4 생성 (로컬 작업)")
     action.add_argument("--list-courses", action="store_true", help="텍스트북 과목 목록 출력 (API 호출 없음)")
     parser.add_argument("--course", help="과목 번호 또는 유일하게 일치하는 과목명 (예: 3, AI/ML)")
+    parser.add_argument("--transcription-backend", choices=("openai", "local"), default="openai",
+                        help="전사 방식 (기본: 기존 OpenAI API)")
+    parser.add_argument("--translation-backend", choices=("openai", "codex"), default="openai",
+                        help="번역 방식 (기본: 기존 OpenAI API, codex: CLI 로그인 사용)")
+    parser.add_argument("--codex-model", help="Codex 번역 모델 ID (생략하면 모델 목록의 기본 모델을 확인해 명시적으로 전달)")
+    parser.add_argument("--codex-reasoning", help="선택한 모델의 추론 수준 (생략하면 모델 목록의 기본 수준)")
+    parser.add_argument("--codex-executable", type=Path, help="Codex 실행 파일 경로 (기본: 자동 검색)")
+    parser.add_argument("--local-model", choices=("large-v2", "medium", "small"), default="large-v2",
+                        help="로컬 Whisper 모델 (기본: large-v2, INT8 양자화)")
+    parser.add_argument("--local-device", choices=("auto", "cuda", "cpu"), default="auto",
+                        help="로컬 장치. auto/cuda는 VRAM 부족 또는 CUDA 오류 시 CPU 재시도")
     parser.add_argument("--parallel-render", action="store_true",
                         help="자막 개수로 연속 구간을 나눠 물리 코어 수까지 병렬 합성 (기본: 순차 처리)")
     parser.add_argument("--pipeline-output-dir", type=Path, default=project_dir / "output_runs",
@@ -51,6 +64,8 @@ def main() -> int:
         parser.error("--parallel-render는 전체 파이프라인 또는 --render에서만 사용할 수 있습니다.")
     if args.transcription_response and (not args.transcribe or args.filepath is None or args.filepath.suffix.lower() != ".mp3"):
         parser.error("--transcription-response는 동일 MP3 입력의 --transcribe와 함께 사용하세요.")
+    if args.transcription_response and args.transcription_backend == "local":
+        parser.error("--transcription-response 복구는 기존 OpenAI API 방식에서만 지원합니다.")
     try:
         from textbook import Textbook
         if args.list_courses:
@@ -68,7 +83,11 @@ def main() -> int:
             except ImportError:
                 raise ValueError("python -m pip install -r requirements.txt 를 실행하세요.") from None
             result = run_pipeline(args.filepath, args.pipeline_output_dir, args.api_key_file, args.textbook_file,
-                                  course=args.course, parallel_render=args.parallel_render)
+                                  course=args.course, parallel_render=args.parallel_render,
+                                  transcription_backend=args.transcription_backend,
+                                  local_model=args.local_model, local_device=args.local_device,
+                                  translation_backend=args.translation_backend, codex_model=args.codex_model,
+                                  codex_executable=args.codex_executable, codex_reasoning=args.codex_reasoning)
             print(f"전체 파이프라인 완료: {result}", flush=True)
             return 0
         if args.make_srt or args.render:
@@ -94,15 +113,32 @@ def main() -> int:
             except ImportError:
                 raise ValueError("python -m pip install -r requirements.txt 를 실행하세요.") from None
             try:
-                output = SubtitleTranslator(args.api_key_file, args.textbook_file, course=args.course).translate(
-                    args.filepath, args.translation_output,
-                )
+                if args.translation_backend == "codex":
+                    from codex_translator import CodexSubtitleTranslator
+                    translator = CodexSubtitleTranslator(args.textbook_file, course=args.course,
+                                                         model=args.codex_model, executable=args.codex_executable,
+                                                         reasoning=args.codex_reasoning)
+                else:
+                    translator = SubtitleTranslator(args.api_key_file, args.textbook_file, course=args.course)
+                output = translator.translate(args.filepath, args.translation_output)
             except SubtitleTranslationError as exc:
                 print(f"번역 실패: {exc}", file=sys.stderr)
                 return 1
             print(f"영어 자막: {output}")
             return 0
         if args.transcribe:
+            if args.transcription_backend == "local":
+                from local_transcriber import LocalTranscriber
+                audio = MediaFile(args.filepath)
+                if args.filepath.suffix.lower() != ".mp3":
+                    audio = AudioExtractor(project_dir / "output_audios").extract(audio)
+                transcript = LocalTranscriber(
+                    args.transcript_output_dir, args.textbook_file, course=args.course,
+                    model=args.local_model, device=args.local_device,
+                ).transcribe(audio)
+                print(f"전사 저장 완료: {transcript.file_path}")
+                print(f"구간 수: {len(transcript.subscript_lines)}")
+                return 0
             # 추출만 수행할 때에는 SDK와 API 키가 필요하지 않습니다.
             try:
                 from audio_transcriber import AudioTranscriber, AudioTranscriptionError

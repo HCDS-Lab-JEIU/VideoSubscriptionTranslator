@@ -7,9 +7,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+models/
 packaging/build/
 packaging/dist/
 packaging/*.zip
+packaging/SHA256SUMS.txt
 
 # API keys and local credentials (including copies outside secrets/)
 secrets/

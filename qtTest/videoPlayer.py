@@ -4,8 +4,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt, QUrl, pyqtSignal
 from PyQt6.QtMultimedia import QAudioOutput, QMediaPlayer
-from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 )
 
 from qtTest.AudioWaveVisualizer import AudioWaveVisualizer
+from qtTest.subtitle_preview import SubtitleTrack, SubtitleVideoView
 
 
 class QVideoPlayer(QWidget):
@@ -23,12 +24,13 @@ class QVideoPlayer(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.current_path: Path | None = None
+        self.subtitle_track = SubtitleTrack()
 
         self.media_player = QMediaPlayer(self)
         self.audio_output = QAudioOutput(self)
-        self.video_widget = QVideoWidget(self)
+        self.video_widget = SubtitleVideoView(self)
         self.media_player.setAudioOutput(self.audio_output)
-        self.media_player.setVideoOutput(self.video_widget)
+        self.media_player.setVideoOutput(self.video_widget.video_item)
         self.audio_output.setVolume(0.8)
 
         self.play_button = QPushButton("▶")
@@ -39,6 +41,7 @@ class QVideoPlayer(QWidget):
         self.play_button.clicked.connect(self.toggle_playback)
 
         self.wave_visualizer = AudioWaveVisualizer(self)
+        self.wave_visualizer.setFixedHeight(48)
         self.wave_visualizer.seek_requested.connect(self.media_player.setPosition)
 
         self.time_label = QLabel("00:00 / 00:00")
@@ -72,6 +75,12 @@ class QVideoPlayer(QWidget):
         controls.addWidget(self.play_button)
         controls.addWidget(self.time_label)
         controls.addStretch(1)
+        self.subtitle_checkbox = QCheckBox("미리보기 자막")
+        self.subtitle_checkbox.setChecked(True)
+        self.subtitle_checkbox.setEnabled(False)
+        self.subtitle_checkbox.setToolTip("번역된 SRT가 생성되면 자동으로 표시됩니다.")
+        self.subtitle_checkbox.toggled.connect(self._update_subtitle)
+        controls.addWidget(self.subtitle_checkbox)
         controls.addWidget(self.volume_label)
         controls.addWidget(self.volume_slider)
 
@@ -93,6 +102,7 @@ class QVideoPlayer(QWidget):
             raise FileNotFoundError(f"Video file not found: {path}")
 
         self.current_path = path
+        self.clear_subtitles()
         self.media_player.stop()
         self.media_player.setSource(QUrl.fromLocalFile(str(path)))
         self.wave_visualizer.load_media(path)
@@ -110,6 +120,28 @@ class QVideoPlayer(QWidget):
     def _update_position(self, position: int) -> None:
         self.wave_visualizer.set_position(position)
         self._update_time_label(position, self.media_player.duration())
+        self._update_subtitle(position=position)
+
+    def clear_subtitles(self):
+        self.subtitle_track = SubtitleTrack()
+        self.video_widget.set_caption("")
+        self.subtitle_checkbox.setEnabled(False)
+        self.subtitle_checkbox.setToolTip("번역된 SRT가 생성되면 자동으로 표시됩니다.")
+
+    def load_subtitles(self, video_path, srt_path):
+        if self.current_path != Path(video_path).resolve():
+            return False
+        self.subtitle_track = SubtitleTrack.load(srt_path)
+        self.subtitle_checkbox.setEnabled(bool(self.subtitle_track.cues))
+        self.subtitle_checkbox.setToolTip(f"미리보기 전용 자막: {srt_path}")
+        self._update_subtitle()
+        return True
+
+    def _update_subtitle(self, _checked=None, *, position=None):
+        if position is None:
+            position = self.media_player.position()
+        text = self.subtitle_track.text_at(position) if self.subtitle_checkbox.isChecked() else ""
+        self.video_widget.set_caption(text)
 
     def _update_duration(self, duration: int) -> None:
         self.wave_visualizer.set_duration(duration)

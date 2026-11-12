@@ -5,6 +5,11 @@ import runpy
 import sys
 
 
+if "--runtime-checks" in sys.argv:
+    from runtime_checks import check_runtime
+    check_runtime()
+    raise SystemExit(0)
+
 if Path(sys.executable).stem.endswith("-CLI"):
     for stream in (sys.stdout, sys.stderr):
         if stream is not None:
