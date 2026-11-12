@@ -4,7 +4,7 @@
 
 한국어 강의 영상에서 음성을 받아쓰고 영어로 번역해 **SRT 자막과 자막이 합성된 MP4**를 만드는 Windows 데스크톱 앱입니다. 강의별 용어장을 적용하고, 영상 재생과 텍스트북 편집을 지원합니다.
 
-붉은 박스와 화살표로 기능을 설명한 [화면별 사용법 안내](docs/user-guide/index.html)와 [전체 이미지·안내 ZIP](docs/user-guide.zip)을 제공합니다.
+붉은 박스와 화살표로 기능을 설명한 [화면별 사용법 안내](docs/user-guide/README.md)를 GitHub에서 바로 읽을 수 있습니다. 오프라인에서는 [전체 이미지·안내 ZIP](docs/user-guide.zip)을 내려받아 압축을 풀고 `index.html`을 여세요.
 
 ## Windows 앱 사용
 

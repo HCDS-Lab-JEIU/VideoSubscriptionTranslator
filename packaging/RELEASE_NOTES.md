@@ -22,7 +22,7 @@
 - 구형 `.ppt` 입력에는 Windows PowerPoint가 필요합니다. PPTX는 Office 없이 읽으며 이미지 OCR·발표자 노트는 제외합니다.
 - 최종 MP4는 자막이 합성된 영상입니다. 소프트 자막은 앱 내 미리보기에서 사용합니다.
 
-이전 버전의 `secrets` 폴더와 작업 결과는 따로 보관하고 새 ZIP을 별도 폴더에 풀어 사용하세요. 사용법은 패키지의 `docs/user-guide/index.html`에서 확인할 수 있습니다.
+이전 버전의 `secrets` 폴더와 작업 결과는 따로 보관하고 새 ZIP을 별도 폴더에 풀어 사용하세요. [화면별 사용법은 GitHub에서 바로 읽을 수 있습니다](https://github.com/HCDS-Lab-JEIU/VideoSubscriptionTranslator/blob/main/docs/user-guide/README.md). 오프라인에서는 패키지의 `docs/user-guide/index.html`을 브라우저로 여세요.
 
 ## 검증
 
